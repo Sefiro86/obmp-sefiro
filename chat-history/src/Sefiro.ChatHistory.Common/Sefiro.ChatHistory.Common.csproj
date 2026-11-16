@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Sefiro.ChatHistory.Common</RootNamespace>
+    </PropertyGroup>
+
+    <!-- Code shared by the client and server halves. The game and the relay server provide the SDK
+         assemblies at runtime, so they are never shipped with the mod. -->
+    <ItemGroup>
+        <PackageReference Include="ReadyM.SDK.Oblivion.Common" Version="1.1.0" />
+    </ItemGroup>
+
+</Project>

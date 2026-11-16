@@ -1,0 +1,12 @@
+{
+  "uniqueId": "Sefiro.ChatHistory",
+  "version": "1.0.0",
+  "name": "Chat History",
+  "author": "Sefiro",
+  "description": "Press Up and Down in the chat to bring back the lines you sent before, including those from previous sessions. Requires the updated chat.js included in the release.",
+  "link": "https://github.com/Sefiro86/obmp-sefiro/tree/main/chat-history",
+  "dependencies": [
+    { "uniqueId": "OblivionMP.SDK", "minimumVersion": "1.1.0" },
+    { "uniqueId": "OblivionMP.Chat", "minimumVersion": "1.1.0" }
+  ]
+}
