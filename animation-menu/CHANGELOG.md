@@ -2,6 +2,18 @@
 
 All notable changes to Sefiro Animation Menu are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] - 2026-11-17
+
+### Fixed
+
+- Playing a sequence flooded the game's log with about 1,800 `[PARAM SOURCE]` errors per second. Pure mode switched
+  the character's mesh out of its animation blueprint, and OblivionMP reads the values it sends to other players
+  from that blueprint on every frame. Every animation now plays inside the animation blueprint.
+
+### Removed
+
+- Pure mode (F5) and the rest pose (F9): both needed the character's mesh out of its animation blueprint.
+
 ## [0.9.1] - 2026-11-17
 
 First public release (beta).

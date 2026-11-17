@@ -255,7 +255,6 @@
     <div class="row bar" id="bar">
       <span class="who" id="body" style="font-size:12px">animations on your character</span>
       <button data-act="root" title="root motion: the animation moves your character, or it stays in place (M)">root motion on<kbd>M</kbd></button>
-      <button data-act="mode" title="pure: the animation alone; game: inside the AnimBlueprint">pure<kbd>F5</kbd></button>
     </div>
     <nav id="tabs"></nav>
     <div class="search"><input id="q" placeholder="search by name (click here or Ctrl+F)" spellcheck="false" autocomplete="off"></div>
@@ -327,8 +326,6 @@
         <dt>timeline</dt><dd>click: jump to that point</dd>
         <dt><kbd>[</kbd><kbd>]</kbd></dt><dd>mark the start and the end of the section to repeat</dd>
         <dt><kbd>\</kbd></dt><dd>clear the section</dd>
-        <dt><kbd>F9</kbd></dt><dd>rest pose, no animation</dd>
-        <dt><kbd>F5</kbd></dt><dd>pure mode (the animation alone) or game mode (with head look and the AnimBlueprint)</dd>
       </dl></section>
       <section><h3>Camera</h3><dl>
         <dt><kbd>A</kbd><kbd>D</kbd></dt><dd>orbit (hold)</dd>
@@ -353,7 +350,7 @@
               "loco|A_Humanoid_TwoHand_Run_F_60L|0.9", "loco|A_Humanoid_TwoHand_Idle|3.0", "loco|AM_Humanoid_Stop_L|1.3",
               "loco|A_Humanoid_Passive_Walk_Forward|1.1", "combat|A_Humanoid_Dagger_Attack_A_v0|1.2",
               "special|A_Humanoid_Cheer01|2.4", "death|A_Humanoid_OneHand_GetUp_Face_Up|2.2", "fav|A_Humanoid_TwoHand_Sprint|0.5"];
-            h.list("v1\n#status targets=1 speed=1 loop=1 mode=pure playing=A_Humanoid_TwoHand_Sprint\n"
+            h.list("v1\n#status targets=1 speed=1 loop=1 mode=slot playing=A_Humanoid_TwoHand_Sprint\n"
               + "#cam on=1 preset=three_quarter spin=0 fp=0\n#ab a=0.12 b=0.41\n" + rows.join("\n"));
             let t = 0; setInterval(() => { t = (t + 0.033) % 0.53; h.pos(t.toFixed(3) + " 0.533"); }, 100);
           }, 50);
@@ -381,7 +378,7 @@
     let anims = [], byName = {}, recent = [];
     let status = {}, ab = {}, pos = null, cam = {};   // from the game
     let group = 0, selected = 0, query = "";
-    let speedIndex = 3, paused = false, loop = false, pure = true;
+    let speedIndex = 3, paused = false, loop = false;
     const onMe = true;                                // the target is always your own character
     let tour = null;                                  // tour: { items, i, timer }
     let shown = [];
@@ -416,7 +413,6 @@
       held.clear();
     }
     const ACTIONS = {
-      mode: () => { pure = !pure; send("mode " + (pure ? "pure" : "slot")); },
       root: () => { status.root = status.root === "0" ? "1" : "0"; send("root " + (status.root === "0" ? "off" : "on")); },
       play: () => { const a = shown[selected]; if (a) { stopTour(); play(a); } },
       pause: () => { paused = !paused; sendSpeed(); },
@@ -429,7 +425,6 @@
       marka: () => send("mark a"),
       markb: () => send("mark b"),
       abclear: () => send("abclear"),
-      refpose: () => { stopTour(); send("refpose"); },
       home: () => { stopTour(); paused = false; speedIndex = 3; send("home"); },
       tour: () => {
         if (tour) stopTour();
@@ -504,8 +499,6 @@
       const fp = cam.fp === "1";
       who.className = "who" + (fp ? " none" : "");
       who.innerHTML = fp ? "<b>switch to third person</b>" : "";
-      const md = $("bar").querySelector('[data-act="mode"]');
-      md.firstChild.nodeValue = pure ? "pure" : "game";
       const body = status.body && status.body !== "Humanoid" ? status.body.replace(/,/g, ", ") : "";
       $("body").textContent = body ? "body: " + body : "animations on your character";
       const rt = $("bar").querySelector('[data-act="root"]');
@@ -696,10 +689,8 @@
       else if (k === "-" || k === "_") ACTIONS.slower();
       else if (k === "F1") ACTIONS.loop();
       else if (k === "F2") ACTIONS.stop();
-      else if (k === "F5") ACTIONS.mode();
       else if (k === "F7") ACTIONS.home();
       else if (k === "F8") ACTIONS.tour();
-      else if (k === "F9") ACTIONS.refpose();
       else if (k === "Escape") { releaseCam(); readym.sendAnimMenuClose(); }
       else handled = false;   // letters do nothing outside the search box
       e.preventDefault();
@@ -740,7 +731,6 @@
 
     render();
     readym.sendAnimMenuReady();
-    send("mode pure");
   </script>
 </body>
 </html>

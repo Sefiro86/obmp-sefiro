@@ -13,9 +13,10 @@
 --    catalog catalog.txt (all animations in the pak, from tools\make_catalog.ps1). Animations not in memory are
 --    loaded on play with the engine loader, KismetSystemLibrary:LoadAsset_Blocking;
 --  * No NotifyOnNewObject (it crashes on the loading thread);
---  * All work runs in the local player's ReceiveTick (game thread). No LoopAsync.
--- How it plays: "pure" mode uses PlayAnimation on the mesh (single node, no AnimBlueprint); "game" mode uses
--- PlaySlotAnimationAsDynamicMontage on the "FullBody" slot (montages use Montage_Play). Speed and pause use the
+--  * All work runs in the local player's ReceiveTick (game thread). No LoopAsync;
+--  * Never single node mode on the player's Mesh (see restoreBlueprint).
+-- How it plays: inside the player's AnimBlueprint, sequences with PlaySlotAnimationAsDynamicMontage on the "FullBody"
+-- slot and montages with Montage_Play. "mode" and "refpose" are kept as commands but do nothing. Speed and pause use the
 -- animation play rate: CustomTimeDilation would also slow down the player's movement, camera and networking.
 
 local TAG = "[SefiroAnimationMenu] "
@@ -203,7 +204,7 @@ end
 
 -- ---------------------------------------------------------------- state and targets
 
-local state = { speed = 1, loop = false, target = "me", playing = nil, current = nil, mode = "pure", root = true }
+local state = { speed = 1, loop = false, target = "me", playing = nil, current = nil, mode = "slot", root = true }
 local targets = {}        -- { actor, inst, montage, self }
 local cam, PRESETS        -- bench camera (section further down); declared here because writeList reads them
 
@@ -278,11 +279,14 @@ local function setSpeed(t, speed)
     pcall(function() t.actor.CustomTimeDilation = speed end)
 end
 
--- "Pure" mode: the mesh plays the sequence by itself (EAnimationMode AnimationSingleNode), without the AnimBlueprint,
--- like the offline bench. It is needed for the rig: in "game" mode the NPC AnimBlueprint applies the FullBody slot
--- only to the neck and head (test 2026-11-16, sprint: body in idle and neck bent like a sprint, a pose the game
--- never produces). Stop goes back to the AnimBlueprint (SetAnimationMode(AnimationBlueprint, init)).
-local MODE_BP, MODE_SINGLE = 0, 1
+-- Everything plays inside the player's AnimBlueprint (montages, and sequences as dynamic montages on the FullBody
+-- slot). Never switch the player's Mesh to single node mode (SetAnimationMode AnimationSingleNode, the old "pure"
+-- mode and rest pose, removed in 0.9.2): OblivionMP reads the network-synced animation values from the Mesh's
+-- AnimInstance on every tick, with properties looked up once on the AnimBlueprint class. With a single node instance
+-- the linked-layer values come back null, which logs about 1,800 "[PARAM SOURCE]" lines per second (test
+-- 2026-11-17), and the values on the main instance are read with the offsets of the old class.
+-- restoreBlueprint stays only as a safety net for a Mesh left in single node mode.
+local MODE_BP = 0
 
 local function restoreBlueprint(t)
     if not t.single then return end
@@ -299,7 +303,7 @@ end
 -- (ERootMotionMode 1): the root movement is extracted and discarded, the character stays in place.
 -- On, and every stop, restore the mode the instance had: outside the bench the game must find its own mode again,
 -- otherwise dodges and attacks would no longer move the player. There are two instances (AnimBlueprint and the
--- single node of pure mode), each with its own original mode.
+-- single node instance of a Mesh left in single node mode), each with its own original mode.
 local ROOT_IGNORE = 1
 local rootSaved = {}
 
@@ -326,14 +330,6 @@ local function stopOn(t, blend, keepSingle)
 end
 
 local function playOn(t, a)
-    if state.mode == "pure" and not a.montage then
-        stopOn(t, 0.1, true)
-        local ok, err = pcall(function() t.actor.Mesh:PlayAnimation(a.obj, state.loop) end)
-        if ok then t.single = true else log("PlayAnimation on " .. shortName(t.actor) .. ": " .. tostring(err):sub(1, 160)) end
-        setSpeed(t, state.speed)
-        setRoot(t, not state.root)
-        return
-    end
     stopOn(t, 0.1)
     setRoot(t, not state.root)
     local inst = animInstance(t.actor)
@@ -354,18 +350,9 @@ local function cmdPlay(name, loop)
     local a = animByName(name)
     if not a then log("play: " .. name .. " is not in memory on this PC"); return end
     state.loop = (loop == "1")
-    local keep = (state.mode == "pure" and not a.montage)   -- stay in single node: no AnimBlueprint reinit
     local again = findTargets()
-    local still = {}
-    for _, t in ipairs(again) do still[fullName(t.actor)] = true end
     for _, t in ipairs(targets) do
-        -- anything that is no longer a target still goes back to the AnimBlueprint
-        if valid(t.actor) then stopOn(t, 0.1, keep and still[fullName(t.actor)]) end
-    end
-    for _, t in ipairs(again) do
-        for _, old in ipairs(targets) do
-            if valid(old.actor) and fullName(old.actor) == fullName(t.actor) then t.single = old.single end
-        end
+        if valid(t.actor) then stopOn(t, 0.1) end
     end
     state.playing, state.current = name, a
     state.abA, state.abB = nil, nil
@@ -501,25 +488,9 @@ local function abTick()
     end
 end
 
--- mesh rest pose: single node mode with no animation
+-- Rest pose (refpose) was removed in 0.9.2: it needs single node mode on the player's Mesh (see restoreBlueprint).
 local function cmdRefPose()
-    cmdStop()
-    for _, t in ipairs(targets) do
-        if valid(t.actor) then
-            local ok, err = pcall(function()
-                local mesh = t.actor.Mesh
-                mesh:SetAnimationMode(MODE_SINGLE, false)
-                mesh:SetAnimation(nil)
-            end)
-            t.single = ok
-            log("rest pose on " .. shortName(t.actor) .. ": " .. (ok and "OK" or tostring(err):sub(1, 160)))
-        end
-    end
-    if #targets == 0 then
-        targets = findTargets()
-        if #targets > 0 then return cmdRefPose() end
-    end
-    state.playing = "rest_pose"   -- no spaces: the status line is "key=value" pairs separated by spaces
+    log("rest pose is not available: it would take the player's Mesh out of the AnimBlueprint")
 end
 
 local function saveFavs()
@@ -930,7 +901,9 @@ local function run(line)
     elseif verb == "play" then cmdPlay(a1, a2)
     elseif verb == "stop" then cmdStop()
     elseif verb == "speed" then cmdSpeed(a1)
-    elseif verb == "mode" then state.mode = (a1 == "slot") and "slot" or "pure"; log("mode " .. state.mode)
+    elseif verb == "mode" then
+        -- 0.9.2: "pure" mode removed (see restoreBlueprint); every animation plays inside the AnimBlueprint
+        if a1 == "pure" then log("pure mode is not available: playing inside the AnimBlueprint") end
     elseif verb == "root" then cmdRoot(a1)
     elseif verb == "step" then cmdStep(a1)
     elseif verb == "mark" then cmdMark(a1 == "b" and "b" or "a")

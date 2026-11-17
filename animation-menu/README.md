@@ -3,7 +3,7 @@
 An animation test bench on your own character in OblivionMP. Open the menu, pick any animation of the game and watch
 your character play it, framed by a bench camera, in slow motion, frame by frame or in a loop.
 
-**Version 0.9.1 (beta).** Tested in game on a human character; see [Known limitations](#known-limitations).
+**Version 0.9.2 (beta).** Tested in game on a human character; see [Known limitations](#known-limitations).
 
 ## Features
 
@@ -15,7 +15,7 @@ your character play it, framed by a bench camera, in slow motion, frame by frame
 - **Bench camera**: a fixed camera on the spot where you opened the menu, with six framings (three-quarter, front,
   profile, back, close-up, feet), orbit, height, zoom and a slow turntable. Mouse or keyboard.
 - **Playback controls**: speed from 0.1× to 2×, pause, one frame back or forward, loop, an A-B section to repeat,
-  a clickable timeline, the rest pose, and a tour that plays every animation from the selection down.
+  a clickable timeline, and a tour that plays every animation from the selection down.
 - **Root motion on or off**: let the animation move your character, or keep it in place.
 - **Back to the start (F7)**: after animations that move you, go back to where you were when you opened the menu.
 - **Favorites and recent animations**, and search by name.
@@ -66,10 +66,8 @@ on and your character stands still.
 | [ ] \ | mark the start and the end of a section to repeat, clear it |
 | F1 | loop |
 | F2 | stop |
-| F5 | pure or game mode (see below) |
 | F7 | go back to where you were when you opened the menu |
 | F8 | tour from the selection down |
-| F9 | rest pose |
 | M | root motion on or off |
 | * | add to or remove from favorites |
 | Ctrl+F or / | search by name (Esc leaves the search box) |
@@ -79,16 +77,17 @@ on and your character stands still.
 | ? | all controls |
 | Esc or Alt+Y | close the menu |
 
-**Pure and game mode.** In pure mode (the default) your character plays the animation alone, exactly as it is in the
-file: the best way to look at an animation or check a rig. In game mode the animation goes through your character's
-animation blueprint, as the game would play it, with head look and blending. Montages (names starting with `AM_`)
-always play through the animation blueprint.
+**How animations play.** Every animation plays through your character's animation blueprint, as the game would play
+it: montages (names starting with `AM_`) directly, sequences on the blueprint's full-body slot. The menu never takes
+your character out of its animation blueprint, because OblivionMP reads the animation values it sends to the other
+players from it on every frame.
 
 ## Known limitations
 
 - **Only you see the animations.** The other players see your character standing still.
 - **Creature bodies are less tested than humans.** The creature list depends on reading the skeleton of your current
-  body; if it cannot be read, the menu falls back to the humanoid list and says so in `animtest.log`.
+  body; if it cannot be read, the menu falls back to the humanoid list and says so in `animtest.log`. Sequences play on
+  the `FullBody` slot: a creature animation blueprint without that slot shows montages only.
 - **Context animations** (beds, chairs, mounting a horse, tools) carry game events meant for real furniture and
   horses. Played on their own they can change the state of the game camera; the menu puts it back when you close it.
   If your view still looks wrong after closing, sit on a real chair and stand up.
@@ -101,7 +100,7 @@ always play through the animation blueprint.
 - `src\` is the OblivionMP C# mod: the Alt+Y key, the menu page (`web\index.html`) and the file exchange with the
   Lua mod. Commands go to `cmd.txt`; the Lua answers with `list.txt` (animations and state) and `pos.txt` (timeline).
 - `lua\SefiroAnimationMenu\` is the UE4SS Lua mod. All work runs in the local player's tick on the game thread:
-  playing animations (`PlayAnimation` in pure mode, a dynamic montage on the `FullBody` slot in game mode), the bench
+  playing animations (montages, and sequences as dynamic montages on the `FullBody` slot), the bench
   camera (a `CameraActor` set as the view target), input and cursor, and loading animations with the engine's own
   loader (`KismetSystemLibrary.LoadAsset_Blocking`).
 - `catalog.txt` lists every third-person animation in the game files with its asset path.
