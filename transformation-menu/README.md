@@ -1,0 +1,121 @@
+# Sefiro Transformation Menu
+
+Turn into one of the game's creatures, or into a custom character, in OblivionMP. You keep your own controls, stats,
+inventory and spells, while the creature brings its body, animations, sounds and attack damage. The other players
+see the creature too.
+
+**Version 0.9.0 (beta).** Most creatures have been tested in game; see [Known limitations](#known-limitations).
+
+## Features
+
+- **37 creatures** in four groups, read from the game's own data:
+  - Beasts of Tamriel: Troll, Ogre, Minotaur, Spriggan, Mountain Lion, Wolf, Bear, Boar, Deer, Dog, Rat, Sheep,
+    Mud Crab, Goblin, Land Dreugh, Scalon, Imp.
+  - Undead: Skeleton, Zombie, Ghost, Wraith, Lich.
+  - Daedra: Xivilai, Daedroth, Clannfear, Scamp, Flame Atronach, Frost Atronach, Storm Atronach, Spider Daedra.
+  - Shivering Isles: Baliwog, Elytra, Gnarl, Grummite, Hunger, Shambles, Flesh Atronach.
+- **A bestiary menu** (Alt+U), or the `/transform` chat command.
+- **The creature's attack damage**: the server sets the damage of every hit you deal while transformed to the
+  creature's own value, whatever weapon your character holds.
+- **The creature's sounds**: footsteps, pain, attack, alert and idle sounds.
+- **Unarmed while transformed**: your weapon, shield or torch is taken off when you transform and given back when you
+  return to normal. Creatures have no animations for weapons in hand.
+- **Character packs**: custom humanoid characters (a new race with its own body) show up in the menu, with optional
+  skin variants. Characters installed without a pack file are **detected automatically**.
+- **Multiplayer**: everyone with the mod sees your transformation and your creature's attacks.
+- **Light on the server**: the server only keeps who is transformed into what and adjusts the damage of hits.
+
+## Requirements
+
+- An OblivionMP 1.1.0 server with the **OblivionMP.Chat** mod (it ships with OblivionMP).
+- On each player's PC: Oblivion Remastered started through the ReadyM launcher, which includes UE4SS.
+
+## Install
+
+The mod has two parts:
+
+1. **Server** (once, by the server owner): the OblivionMP mod. The server sends its client half to every player.
+   - Stop the server.
+   - From the release folder, run in PowerShell:
+     ```powershell
+     .\Install-Server.ps1 -ServerPath "D:\OblivionMP\Server"
+     ```
+     or copy `mods\Sefiro.TransformationMenu` into the server's `mods` folder by hand.
+   - Start the server.
+2. **Each player's PC**: the UE4SS Lua mod that changes the body in game.
+   - Close the game.
+   - Run `.\Install-Client.ps1` from the release folder. It copies `lua\SefiroTransformation` into
+     `%APPDATA%\ReadyM.Launcher\Oblivion\Mods` and enables it in `mods.txt`.
+
+If PowerShell refuses to run the scripts, start it with `powershell -ExecutionPolicy Bypass` or right-click the
+script and choose **Run with PowerShell**.
+
+To check that it works, look in the game's `UE4SS.log` (in `...\Oblivion Remastered\OblivionRemastered\Binaries\Win64`)
+for lines starting with `[SefiroTransformation]`, for example `37 creatures from the data file`.
+
+## Use
+
+- **Alt+U** opens the menu. ↑/↓ (or W/S) select, ←/→ (or A/D) change a character's skin, **Enter** transforms,
+  **Esc** closes. "Back to normal" is at the bottom.
+- **Chat:** `/transform <id>`, `/transform off`, `/transform list`. Creature ids are lowercase names without spaces:
+  `troll`, `mountainlion`, `flameatronach`, `spiderdaedra`... Character packs use `pack:<id>` and
+  `pack:<id>:<skin>`.
+- **Shift+F3** turns the diagnostic lines in `UE4SS.log` on and off.
+
+### Who can transform
+
+`mods\Sefiro.TransformationMenu\server\config.json` on the server:
+
+```json
+{
+  "allowedAccounts": []
+}
+```
+
+An empty list lets everyone transform. Put ReadyM account ids (GUIDs) in the list to allow only those players.
+
+## Character packs
+
+A character pack adds a custom humanoid character. It is a `<id>.json` file in
+`%APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation\packs`. It names the character's race, the files it
+needs and its skin variants. The format is described in [`lua/SefiroTransformation/packs/README.md`](lua/SefiroTransformation/packs/README.md).
+
+A pack only appears when its `.pak` is in `Content\Paks\~mods` and its plugin is in `Plugins.txt`. A character
+whose race and Unreal asset are installed, but which has no pack file, appears under **Detected characters** with its
+default look.
+
+Custom characters must be installed by every player who should see them, like any other game mod.
+
+## Known limitations
+
+- **Beta:** not every creature has been tested in every situation. Please report problems.
+- While you are a creature, the game updates all animations on its main thread (`a.ParallelAnimUpdate 0`) and sets it
+  back when you return to normal. Without this, OblivionMP 1.1.0 can freeze when an animation calls into the
+  transformed player from a worker thread. With many characters nearby you may notice a lower frame rate.
+- Ghost and Lich have no melee attack animation; they attack with the game's normal attack.
+- Bear, Sheep, Ghost and Lich have no "ready for combat" animations: after 1.5 s without attacking they put the
+  hands down again.
+- Torches added by other mods are not taken off. Weapons and shields of any mod are.
+- If you disconnect while transformed, you come back with your weapon and shield unequipped (they are in your
+  inventory).
+- Not included: horse, Mehrunes Dagon, Jyggalag, Gatekeeper (oversized or special), will-o'-the-wisp and slaughterfish.
+
+## Uninstall
+
+- **Server:** stop it and delete `mods\Sefiro.TransformationMenu`.
+- **Player's PC:** close the game and run `.\Uninstall-Client.ps1`, or delete
+  `%APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation` and its line in `mods.txt`.
+
+## Building from source
+
+- `build.ps1` builds the mod with the .NET 10 SDK and writes the release folder and zip to `dist`.
+- `native\` is the source of `SefiroTransformation_native.native`, the small native core that runs `unequipitem` and
+  `equipitem` on the game's thread (`build.bat`, MSVC x64).
+- `tools\creature_inventory.py` regenerates the creature data (`creatures_data.lua`, `CreatureCatalog.g.cs`,
+  `HandItems.g.cs`) from the game files. It needs a local copy of the game and the `obrassets` asset reader, which is
+  not part of this repository.
+
+## License
+
+MIT, see [LICENSE](../LICENSE). OblivionMP is made by ReadyM. The Elder Scrolls IV: Oblivion Remastered is made by
+Bethesda Game Studios and Virtuos. This project is not affiliated with or endorsed by ReadyM or Bethesda.

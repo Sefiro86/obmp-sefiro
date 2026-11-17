@@ -1,0 +1,4 @@
+{
+  // ReadyM accounts (GUID) allowed to use /transform and the menu. Empty list = everyone.
+  "allowedAccounts": []
+}
