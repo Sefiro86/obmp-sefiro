@@ -41,3 +41,11 @@ So a release without a character simply does not list it.
 | `skins` | Optional texture variants. The first one is the default. `albedo` and `nnr` are the textures written into the game skin parameters "BaseColor Map" and "NNR Map". They must already be in memory, for example referenced by the body material. `color` is the swatch shown in the menu (any CSS colour or gradient). |
 
 Skin `<skin>` of a pack is used with `/transform pack:<id>:<skin>` (the first skin is plain `pack:<id>`).
+
+## Body mesh requirement
+
+The body mesh of the race must have **Allow CPU Access** turned on for LOD0 (`bAllowCPUAccess` in the mesh's LOD
+settings), like the game's own bodies. The game rebuilds the character's merged mesh whenever the race or the
+equipment changes, and it reads the vertices of the body from CPU memory. Without the flag the engine frees that copy
+after the first build, and the next rebuild crashes the game: typically when you return to normal, or switch to
+another form, after the custom character has been on screen for a while.
