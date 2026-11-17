@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <!-- The in-game SDK. It brings the shared package and the source generator with it. The game
+         provides these assemblies at runtime, so they never end up in your mod folder. -->
+    <ItemGroup>
+        <PackageReference Include="ReadyM.SDK.Oblivion.Client" Version="1.1.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Sefiro.AnimationMenu.Common\Sefiro.AnimationMenu.Common.csproj" />
+    </ItemGroup>
+
+    <!-- The animation menu page (Alt+Y), served at readym://sefiroanimationmenu/. -->
+    <ItemGroup>
+        <None Update="web\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+</Project>

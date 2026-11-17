@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sefiro Animation Menu</title>
+  <style>
+    /* Sefiro Animation Menu (Alt+Y): animations on your own character; a panel on the right of the screen, over the
+       game. Mouse (while the game shows its cursor) and keyboard.
+       Look: an alchemist's codex. Dark oak with gilt fillets for the structure; magicka blue only for what is live
+       (the animation playing, the timeline head). The strong element is the timeline, an engraved brass rule with a
+       gem for a head. The help (?) is a parchment page with headings rubricated in red.
+       Windows fonts (Constantia, Palatino Linotype): every player's PC has them, so there is nothing to download.
+       No costly effects (blur, animated shadows): the page runs in CEF on top of the game. */
+    :root {
+      --oak: rgba(30, 24, 19, 0.95);
+      --oak-deep: #15110d;
+      --oak-raised: #2c2219;
+      --line: #4a3a2a;
+      --gilt: #c9a35a;
+      --gilt-dim: #8c7348;
+      --gilt-soft: rgba(201, 163, 90, 0.16);
+      --vellum: #eadcbc;
+      --vellum-dim: #a9997b;
+      --magicka: #74bdeb;
+      --magicka-glow: rgba(116, 189, 235, 0.5);
+      --display: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      --text: Constantia, "Palatino Linotype", Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; }
+    body { color: var(--vellum); font: 14px/1.35 var(--text); display: flex; user-select: none; }
+
+    .panel {
+      flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden;
+      background-color: var(--oak);
+      background-image:
+        radial-gradient(130% 60% at 50% 0%, rgba(201, 163, 90, 0.08), transparent 70%),
+        repeating-linear-gradient(90deg, rgba(255, 240, 210, 0.014) 0 1px, transparent 1px 6px);
+      border: 1px solid var(--gilt-dim); border-radius: 4px;
+      box-shadow: inset 0 0 0 4px rgba(21, 17, 13, 0.9), inset 0 0 0 5px rgba(201, 163, 90, 0.3),
+        0 12px 40px rgba(0, 0, 0, 0.6);
+    }
+    /* corner ornaments (SVG at the top of the body) */
+    .orn { position: absolute; width: 30px; height: 30px; color: var(--gilt); pointer-events: none; z-index: 3; }
+    .orn.tl { top: 3px; left: 3px; }
+    .orn.tr { top: 3px; right: 3px; transform: scaleX(-1); }
+    .orn.bl { bottom: 3px; left: 3px; transform: scaleY(-1); }
+    .orn.br { bottom: 3px; right: 3px; transform: scale(-1, -1); }
+
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 18px 22px 4px; }
+    h1 {
+      margin: 0; font: 400 24px/1 var(--display); font-variant: small-caps; letter-spacing: 0.03em; color: var(--vellum);
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+    }
+    .who { font-size: 13px; color: var(--vellum-dim); font-style: italic; }
+    .who b { color: var(--magicka); font-weight: 400; font-style: normal; }
+    .who.none b { color: var(--gilt); }
+    /* fillet under the title: two fading lines and a lozenge in the middle */
+    .fillet { position: relative; height: 9px; margin: 4px 22px 8px; }
+    .fillet::before {
+      content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gilt-dim) 20%, var(--gilt-dim) 80%, transparent);
+    }
+    .fillet::after {
+      content: ""; position: absolute; left: 50%; top: 1px; width: 7px; height: 7px; margin-left: -3.5px;
+      background: var(--oak-deep); border: 1px solid var(--gilt); transform: rotate(45deg);
+    }
+
+    /* buttons: bronze plates */
+    button {
+      font: 13px/1 var(--text); color: var(--vellum-dim); cursor: pointer; white-space: nowrap;
+      background: linear-gradient(#3a2d21, #261d16); border: 1px solid #5a4630; border-radius: 3px; padding: 5px 9px;
+      box-shadow: inset 0 1px 0 rgba(234, 220, 188, 0.08), 0 1px 0 rgba(0, 0, 0, 0.45);
+    }
+    button:hover { color: var(--vellum); border-color: var(--gilt-dim); }
+    button:active { background: linear-gradient(#261d16, #322619); }
+    button:focus-visible { outline: 1px solid var(--magicka); outline-offset: 1px; }
+    button.on {
+      color: var(--gilt); border-color: var(--gilt);
+      background: linear-gradient(#4a3822, #2e2318); box-shadow: inset 0 0 8px rgba(201, 163, 90, 0.28);
+    }
+    button.brass { color: var(--gilt); border-color: var(--gilt-dim); }
+    button:disabled { opacity: 0.35; cursor: default; }
+    button kbd { margin: 0 0 0 6px; min-width: 14px; padding: 0 3px; font-size: 10px; line-height: 13px; }
+    .row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .bar { padding: 0 22px 10px; justify-content: space-between; }
+
+    /* tabs: bookmarks; the open one has the gilt ribbon */
+    nav { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+    nav div {
+      position: relative; flex: 1 1 auto; padding: 6px 4px 9px; text-align: center; cursor: pointer; white-space: nowrap;
+      font: 15px/1.1 var(--display); font-variant: small-caps; letter-spacing: 0.02em; color: var(--vellum-dim);
+    }
+    nav div:hover { color: var(--vellum); }
+    nav div small { display: block; margin-top: 2px; font: 11px var(--text); opacity: 0.7; font-variant-numeric: lining-nums; }
+    nav div.on { color: var(--gilt); }
+    nav div.on::after {
+      content: ""; position: absolute; left: 50%; bottom: -1px; width: 12px; height: 9px; margin-left: -6px;
+      background: var(--gilt); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 55%, 0 100%);
+    }
+
+    .search { padding: 8px 22px 7px; border-bottom: 1px solid var(--line); }
+    .search input {
+      width: 100%; font: 14px var(--text); color: var(--vellum); outline: none; user-select: text;
+      background: rgba(0, 0, 0, 0.28); border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    .search input:focus { border-color: var(--gilt-dim); }
+    .search input::placeholder { color: var(--vellum-dim); font-style: italic; }
+
+    /* list */
+    ul { list-style: none; margin: 0; padding: 4px 0; flex: 1; overflow-y: auto; }
+    ul::-webkit-scrollbar { width: 7px; }
+    ul::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    ul::-webkit-scrollbar-thumb { background: var(--gilt-dim); border-radius: 3px; border: 2px solid transparent; background-clip: padding-box; }
+    li { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 4px 22px 4px 26px; white-space: nowrap; cursor: pointer; }
+    li:hover { background: rgba(234, 220, 188, 0.035); }
+    li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
+    li .pre { color: var(--vellum-dim); font-size: 12px; font-style: italic; }
+    li .star { color: var(--gilt); }
+    li .len { color: var(--vellum-dim); font-size: 12px; font-variant-numeric: lining-nums tabular-nums; }
+    li.cold .name { color: var(--vellum-dim); font-style: italic; }
+    li.cold .len { font-style: italic; opacity: 0.8; }
+    li.selected { background: linear-gradient(90deg, rgba(201, 163, 90, 0.2), rgba(201, 163, 90, 0.04) 75%, transparent); }
+    li.selected::before {
+      content: ""; position: absolute; left: 11px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
+      background: var(--gilt); transform: rotate(45deg);
+    }
+    li.selected .name { color: var(--vellum); }
+    li.playing .name { color: var(--magicka); }
+    li.playing .name::before { content: "\2726  "; color: var(--magicka); font-size: 12px; text-shadow: 0 0 6px var(--magicka-glow); }
+    .empty { padding: 20px 22px; color: var(--vellum-dim); font-style: italic; }
+
+    /* bench camera */
+    .campanel { display: none; border-top: 1px solid var(--line); padding: 9px 22px 10px; background: rgba(0, 0, 0, 0.18); }
+    .campanel.open { display: block; }
+    .campanel h3 {
+      margin: 0 0 7px; display: flex; justify-content: space-between; align-items: baseline;
+      font: 400 16px/1 var(--display); font-variant: small-caps; letter-spacing: 0.02em; color: var(--gilt);
+    }
+    .campanel h3 small { font: italic 13px var(--text); font-variant: normal; color: var(--vellum-dim); }
+    .camgrid { display: grid; grid-template-columns: 1fr 124px; gap: 9px; margin-top: 7px; }
+    /* drag pad: an engraved dial */
+    .pad {
+      height: 78px; border: 1px solid var(--line); border-radius: 4px; cursor: grab; position: relative;
+      background:
+        repeating-radial-gradient(circle at 50% 50%, transparent 0 15px, rgba(201, 163, 90, 0.1) 15px 16px),
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.15));
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      font-size: 12px; font-style: italic; color: var(--vellum-dim); line-height: 1.3;
+    }
+    .pad.drag { cursor: grabbing; border-color: var(--gilt-dim); color: var(--vellum); }
+    .camside { display: flex; flex-direction: column; gap: 4px; }
+    .camside button { width: 100%; }
+
+    /* playback deck */
+    .deck {
+      padding: 11px 22px 10px; border-top: 1px solid var(--gilt-dim);
+      background: linear-gradient(var(--oak-deep), #110d0a);
+      box-shadow: inset 0 3px 0 -2px rgba(201, 163, 90, 0.25);
+    }
+    .now { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+    .now .title { font: 400 18px/1.2 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .now .title.idle { color: var(--vellum-dim); font-style: italic; }
+    .now .time { font-size: 13px; color: var(--vellum-dim); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+    .now .time b { color: var(--vellum); font-weight: 400; }
+
+    /* timeline: engraved brass rule, magicka gem head */
+    .ruler { position: relative; height: 38px; margin: 9px 0 4px; cursor: pointer; }
+    .ruler .base {
+      position: absolute; left: 0; right: 0; top: 13px; height: 4px; border-radius: 2px;
+      background: linear-gradient(#a8874c, #6b5434 60%, #4c3b25);
+      box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.35), 0 1px 1px rgba(0, 0, 0, 0.7);
+    }
+    .ruler .tick { position: absolute; top: 8px; width: 1px; height: 14px; background: var(--gilt-dim); }
+    .ruler .tick.minor { top: 11px; height: 8px; opacity: 0.6; }
+    .ruler .lab { position: absolute; top: 24px; font-size: 11px; color: var(--vellum-dim); transform: translateX(-50%); font-variant-numeric: lining-nums; }
+    .ruler .ab {
+      position: absolute; top: 7px; height: 16px; background: var(--gilt-soft);
+      border-left: 2px solid var(--gilt); border-right: 2px solid var(--gilt);
+    }
+    .ruler .ab.open { border-right: none; }
+    .ruler .head {
+      position: absolute; top: 4px; width: 2px; height: 24px; background: var(--magicka);
+      box-shadow: 0 0 6px 1px var(--magicka-glow); transition: left 0.1s linear;
+    }
+    .ruler .head::before {
+      content: ""; position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; transform: rotate(45deg);
+      background: linear-gradient(135deg, #d8f0ff, var(--magicka) 55%, #2f6f99);
+      box-shadow: 0 0 8px 2px var(--magicka-glow);
+    }
+    .ruler.empty { cursor: default; }
+    .ruler.empty .head, .ruler.empty .ab { display: none; }
+    .transport { margin: 3px 0 8px; gap: 4px; flex-wrap: nowrap; }
+    .transport button { padding: 5px 7px; }
+    .transport .speed { min-width: 46px; text-align: center; font-size: 13px; color: var(--vellum); font-variant-numeric: lining-nums tabular-nums; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; min-height: 22px; }
+    .chip { padding: 2px 9px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; font-style: italic; color: var(--vellum-dim); }
+    .chip.lit { color: var(--magicka); border-color: rgba(116, 189, 235, 0.5); }
+    .chip.brass { color: var(--gilt); border-color: var(--gilt-dim); }
+
+    footer { display: flex; justify-content: space-between; padding: 8px 22px 13px; border-top: 1px solid var(--line); font-size: 12px; color: var(--vellum-dim); }
+    .foot { cursor: pointer; padding: 2px 4px; border-radius: 3px; }
+    .foot:hover { color: var(--vellum); background: rgba(234, 220, 188, 0.05); }
+    kbd {
+      display: inline-block; min-width: 18px; padding: 0 5px; margin-right: 4px; text-align: center;
+      font: 11px/17px var(--text); font-variant-numeric: lining-nums; color: var(--gilt);
+      background: #120e0b; border: 1px solid #5a4630; border-bottom-width: 2px; border-radius: 3px;
+    }
+
+    /* help: parchment page, rubricated headings */
+    .help {
+      position: absolute; inset: 0; z-index: 2; display: none; flex-direction: column; overflow-y: auto;
+      padding: 22px 26px; color: #2b2016;
+      background: radial-gradient(ellipse at 50% 40%, #f0e4c6 0%, #e4d2a8 65%, #c9b07c 100%);
+      box-shadow: inset 0 0 50px rgba(90, 60, 20, 0.35);
+    }
+    .help.open { display: flex; }
+    .help h2 { margin: 0 0 6px; font: 400 24px/1.1 var(--display); font-variant: small-caps; letter-spacing: 0.03em; color: #3a2a18; }
+    .help p { margin: 0 0 14px; color: #5a4834; font-size: 14px; line-height: 1.45; }
+    .help section { margin-bottom: 14px; }
+    .help h3 { margin: 0 0 6px; font: 400 17px/1 var(--display); font-variant: small-caps; color: #8a2f1c; }
+    .help dl { display: grid; grid-template-columns: 112px 1fr; gap: 5px 12px; margin: 0; font-size: 14px; }
+    .help dt { text-align: right; white-space: nowrap; }
+    .help dd { margin: 0; color: #2b2016; }
+    .help kbd { color: #3a2a18; background: #f6edd6; border-color: #9c8660; }
+    .help .close {
+      position: absolute; top: 18px; right: 20px; color: #5a4834; border-color: #9c8660;
+      background: linear-gradient(#f3e8cc, #dcc79a); box-shadow: 0 1px 0 rgba(90, 60, 20, 0.3);
+    }
+    .help .close:hover { color: #2b2016; border-color: #6e5a3a; }
+
+    @media (prefers-reduced-motion: reduce) { .ruler .head { transition: none; } }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <g id="flourish" fill="none" stroke="currentColor">
+      <path d="M2 28 V9 Q2 2 9 2 H28" stroke-width="1.3"/>
+      <path d="M6 22 V11 Q6 6 11 6 H22" stroke-width="0.7" opacity="0.55"/>
+      <path d="M10 6.5 L13.5 10 L10 13.5 L6.5 10 Z" fill="currentColor" stroke="none"/>
+    </g>
+  </defs></svg>
+  <div class="panel">
+    <svg class="orn tl" viewBox="0 0 30 30" aria-hidden="true"><use href="#flourish"/></svg>
+    <svg class="orn tr" viewBox="0 0 30 30" aria-hidden="true"><use href="#flourish"/></svg>
+    <svg class="orn bl" viewBox="0 0 30 30" aria-hidden="true"><use href="#flourish"/></svg>
+    <svg class="orn br" viewBox="0 0 30 30" aria-hidden="true"><use href="#flourish"/></svg>    <header>
+      <h1>Sefiro Animation Menu</h1>
+      <span class="who" id="who"></span>
+    </header>
+    <div class="fillet" aria-hidden="true"></div>
+    <div class="row bar" id="bar">
+      <span class="who" id="body" style="font-size:12px">animations on your character</span>
+      <button data-act="root" title="root motion: the animation moves your character, or it stays in place (M)">root motion on<kbd>M</kbd></button>
+      <button data-act="mode" title="pure: the animation alone; game: inside the AnimBlueprint">pure<kbd>F5</kbd></button>
+    </div>
+    <nav id="tabs"></nav>
+    <div class="search"><input id="q" placeholder="search by name (click here or Ctrl+F)" spellcheck="false" autocomplete="off"></div>
+    <ul id="list"></ul>
+
+    <div class="campanel" id="campanel">
+      <h3>Camera <small id="camname"></small></h3>
+      <div class="row" id="presets"></div>
+      <div class="camgrid">
+        <div class="pad" id="pad"><div>drag: orbit and raise<br>wheel: zoom<br><span style="opacity:.7">keys W A S D Q E</span></div></div>
+        <div class="camside">
+          <button data-act="camreset">reset<kbd>R</kbd></button>
+          <button data-act="camspin">turntable<kbd>T</kbd></button>
+          <button data-act="camzoomin">zoom in<kbd>Q</kbd></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="deck">
+      <div class="now"><span class="title" id="now"></span><span class="time" id="time"></span></div>
+      <div class="ruler empty" id="ruler" title="click: jump to that point"></div>
+      <div class="row transport" id="transport">
+        <button data-act="stepb" title="frame back (,)">◀|</button>
+        <button data-act="play" title="play the selection (Enter)">▶ play</button>
+        <button data-act="pause" title="pause (Space)">❚❚</button>
+        <button data-act="stepf" title="frame forward (.)">|▶</button>
+        <button data-act="stop" title="stop (F2)">■</button>
+        <button data-act="slower" title="slower (−)">−</button>
+        <span class="speed" id="speed"></span>
+        <button data-act="faster" title="faster (+)">+</button>
+        <button data-act="loop" title="loop (F1)">loop</button>
+        <button data-act="marka" title="section start ([)">A</button>
+        <button data-act="markb" title="section end (])">B</button>
+        <button data-act="abclear" title="clear section (\)">×</button>
+        <button data-act="home" title="go back to where you were when you opened the menu (F7)">⌂</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <footer>
+      <span class="foot" data-foot="play"><kbd>Enter</kbd>play</span>
+      <span class="foot" data-foot="pause"><kbd>Space</kbd>pause</span>
+      <span class="foot" data-foot="help"><kbd>?</kbd>all controls</span>
+    </footer>
+
+    <div class="help" id="help">
+      <button class="close" data-help-close>close ✕</button>
+      <h2>Controls</h2>
+      <p>Mouse and keyboard. Letters only type into the search box while it is active (click it or press
+        <kbd>Ctrl+F</kbd>; <kbd>Esc</kbd> leaves it). <kbd>?</kbd> or <kbd>Esc</kbd> closes this page.</p>
+      <section><h3>Choose</h3><dl>
+        <dt><kbd>←</kbd><kbd>→</kbd></dt><dd>tab (or click the tab)</dd>
+        <dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>animation (Page Up and Page Down to jump); double-click to play it</dd>
+        <dt><kbd>Ctrl+F</kbd></dt><dd>search by name</dd>
+        <dt><kbd>*</kbd></dt><dd>add to or remove from favorites</dd>
+      </dl></section>
+      <section><h3>Play</h3><dl>
+        <dt><kbd>Enter</kbd></dt><dd>play the selected animation</dd>
+        <dt><kbd>Space</kbd></dt><dd>pause and resume</dd>
+        <dt><kbd>+</kbd><kbd>−</kbd></dt><dd>speed, from 0.1× to 2×</dd>
+        <dt><kbd>F1</kbd></dt><dd>loop</dd>
+        <dt><kbd>F2</kbd></dt><dd>stop</dd>
+        <dt><kbd>F7</kbd> ⌂</dt><dd>go back to where you were when you opened the menu (after animations that move you)</dd>
+        <dt><kbd>M</kbd></dt><dd>root motion on or off: the animation moves your character, or it stays in place</dd>
+        <dt><kbd>F8</kbd></dt><dd>tour: play every animation from the selection down</dd>
+        <dt><kbd>Esc</kbd></dt><dd>close the menu</dd>
+      </dl></section>
+      <section><h3>Study</h3><dl>
+        <dt><kbd>,</kbd><kbd>.</kbd></dt><dd>one frame back or forward</dd>
+        <dt>timeline</dt><dd>click: jump to that point</dd>
+        <dt><kbd>[</kbd><kbd>]</kbd></dt><dd>mark the start and the end of the section to repeat</dd>
+        <dt><kbd>\</kbd></dt><dd>clear the section</dd>
+        <dt><kbd>F9</kbd></dt><dd>rest pose, no animation</dd>
+        <dt><kbd>F5</kbd></dt><dd>pure mode (the animation alone) or game mode (with head look and the AnimBlueprint)</dd>
+      </dl></section>
+      <section><h3>Camera</h3><dl>
+        <dt><kbd>A</kbd><kbd>D</kbd></dt><dd>orbit (hold)</dd>
+        <dt><kbd>W</kbd><kbd>S</kbd></dt><dd>raise and lower</dd>
+        <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>zoom in and out</dd>
+        <dt><kbd>1</kbd>…<kbd>6</kbd></dt><dd>framing: three-quarter, front, profile, back, close-up, feet</dd>
+        <dt><kbd>R</kbd></dt><dd>starting framing, on the spot where you are now</dd>
+        <dt><kbd>T</kbd></dt><dd>slow continuous turntable</dd>
+        <dt>pad</dt><dd>drag to orbit and raise, wheel to zoom</dd>
+      </dl><p>Animations play on your own character, so switch to third person. The other players do not see them yet. When you close the menu (<kbd>Esc</kbd> or <kbd>Alt+Y</kbd>) the animation stops and you can move normally again.</p></section>
+    </div>
+  </div>
+
+  <script>
+    // Outside the game (preview in a browser) a fake readym with sample data; in game the real one is used.
+    if (!window.readym) {
+      const h = {};
+      window.readym = {
+        sendAnimMenuCommand: (c) => console.log("cmd", c), sendAnimMenuClose: () => {}, sendAnimMenuReady: () => {
+          setTimeout(() => {
+            const rows = ["loco|A_Humanoid_TwoHand_Sprint|0.5", "loco|A_Humanoid_TwoHand_Run_Forward|0.8",
+              "loco|A_Humanoid_TwoHand_Run_F_60L|0.9", "loco|A_Humanoid_TwoHand_Idle|3.0", "loco|AM_Humanoid_Stop_L|1.3",
+              "loco|A_Humanoid_Passive_Walk_Forward|1.1", "combat|A_Humanoid_Dagger_Attack_A_v0|1.2",
+              "special|A_Humanoid_Cheer01|2.4", "death|A_Humanoid_OneHand_GetUp_Face_Up|2.2", "fav|A_Humanoid_TwoHand_Sprint|0.5"];
+            h.list("v1\n#status targets=1 speed=1 loop=1 mode=pure playing=A_Humanoid_TwoHand_Sprint\n"
+              + "#cam on=1 preset=three_quarter spin=0 fp=0\n#ab a=0.12 b=0.41\n" + rows.join("\n"));
+            let t = 0; setInterval(() => { t = (t + 0.033) % 0.53; h.pos(t.toFixed(3) + " 0.533"); }, 100);
+          }, 50);
+        },
+        onAnimMenuList: (f) => (h.list = f), onAnimMenuPos: (f) => (h.pos = f),
+      };
+      if (location.hash === "#help") setTimeout(() => document.getElementById("help").classList.add("open"), 0);
+    }
+
+    const GROUPS = [
+      ["loco", "Movement"], ["combat", "Combat"], ["special", "Poses"],
+      ["death", "Falls"], ["fav", "Favorites"], ["recent", "Recent"]
+    ];
+    const SPEEDS = [0.1, 0.25, 0.5, 1, 1.5, 2];
+    const PRESETS = [["three_quarter", "three-quarter"], ["front", "front"], ["profile", "profile"],
+                     ["back", "back"], ["close_up", "close-up"], ["feet", "feet"]];
+    const CAM_NAMES = Object.fromEntries(PRESETS);
+    // Camera keys held down (e.code: does not depend on the keyboard layout): axis and direction.
+    const CAM_HOLD = { KeyA: ["orbit", "N"], KeyD: ["orbit", "P"], KeyW: ["height", "P"], KeyS: ["height", "N"],
+                       KeyQ: ["zoom", "N"], KeyE: ["zoom", "P"] };
+    // Numeric keypad, as an alternative.
+    const CAM_NUM = { Numpad4: "orbit -1", Numpad6: "orbit 1", Numpad8: "height 1", Numpad2: "height -1",
+                      Numpad7: "zoom -1", Numpad9: "zoom 1", Numpad5: "reset", Numpad0: "spin",
+                      NumpadDivide: "next", NumpadDecimal: "prev" };
+    let anims = [], byName = {}, recent = [];
+    let status = {}, ab = {}, pos = null, cam = {};   // from the game
+    let group = 0, selected = 0, query = "";
+    let speedIndex = 3, paused = false, loop = false, pure = true;
+    const onMe = true;                                // the target is always your own character
+    let tour = null;                                  // tour: { items, i, timer }
+    let shown = [];
+    const held = new Set();                           // camera keys held down
+    let lastClick = { i: -1, t: 0 };                  // double-click on the list (see the click handler)
+    const $ = (id) => document.getElementById(id);
+    const send = (cmd) => readym.sendAnimMenuCommand(cmd);
+    const searching = () => document.activeElement === $("q");
+
+    function pretty(name) {
+      const m = name.match(/^(AM?)_[^_]+_(.*)$/);
+      return { pre: m && m[1] === "AM" ? "montage" : "", text: (m ? m[2] : name).replace(/_/g, " ") };
+    }
+    function inGroup(key) {
+      if (key === "recent") return recent.map(n => byName[n]).filter(Boolean);
+      return anims.filter(a => a.group === key);
+    }
+    function filtered() {
+      const q = query.toLowerCase();
+      return inGroup(GROUPS[group][0]).filter(a => !q || a.name.toLowerCase().includes(q));
+    }
+
+    // ------------------------------------------------------------------ actions (keyboard and mouse)
+    function play(a) {
+      if (paused) { paused = false; sendSpeed(); }
+      send(`play ${a.name} ${loop ? 1 : 0}`);
+      recent = [a.name].concat(recent.filter(n => n !== a.name)).slice(0, 20);
+    }
+    function sendSpeed() { send("speed " + (paused ? 0 : SPEEDS[speedIndex])); }
+    function releaseCam() {
+      for (const code of held) send(`cam move ${CAM_HOLD[code][0]}0`);
+      held.clear();
+    }
+    const ACTIONS = {
+      mode: () => { pure = !pure; send("mode " + (pure ? "pure" : "slot")); },
+      root: () => { status.root = status.root === "0" ? "1" : "0"; send("root " + (status.root === "0" ? "off" : "on")); },
+      play: () => { const a = shown[selected]; if (a) { stopTour(); play(a); } },
+      pause: () => { paused = !paused; sendSpeed(); },
+      stepb: () => { paused = true; send("step -1"); },
+      stepf: () => { paused = true; send("step 1"); },
+      stop: () => { stopTour(); paused = false; speedIndex = 3; send("stop"); },
+      slower: () => { paused = false; speedIndex = Math.max(0, speedIndex - 1); sendSpeed(); },
+      faster: () => { paused = false; speedIndex = Math.min(SPEEDS.length - 1, speedIndex + 1); sendSpeed(); },
+      loop: () => { loop = !loop; },
+      marka: () => send("mark a"),
+      markb: () => send("mark b"),
+      abclear: () => send("abclear"),
+      refpose: () => { stopTour(); send("refpose"); },
+      home: () => { stopTour(); paused = false; speedIndex = 3; send("home"); },
+      tour: () => {
+        if (tour) stopTour();
+        else if (shown.length) { tour = { items: shown.slice(selected), i: 0, timer: 0 }; tourNext(); }
+      },
+      camreset: () => send("cam reset"),
+      camspin: () => send("cam spin"),
+      camzoomin: () => send("cam zoom -1"),
+    };
+
+    function tourNext() {
+      if (!tour) return;
+      if (paused) { tour.timer = setTimeout(tourNext, 400); return; }
+      if (tour.i >= tour.items.length) { stopTour(); render(); return; }
+      const a = tour.items[tour.i++];
+      play(a);
+      const ms = Math.max(2500, Math.min(8000, (parseFloat(a.len) || 2) * 1000 / SPEEDS[speedIndex] + 600));
+      tour.timer = setTimeout(tourNext, ms);
+      render();
+    }
+    function stopTour() { if (tour) clearTimeout(tour.timer); tour = null; }
+
+    // ------------------------------------------------------------------ drawing
+    function renderList() {
+      const tabs = $("tabs");
+      tabs.innerHTML = "";
+      GROUPS.forEach(([key, label], i) => {
+        const d = document.createElement("div");
+        if (i === group) d.className = "on";
+        d.dataset.i = i;
+        d.innerHTML = `${label}<small>${inGroup(key).length}</small>`;
+        tabs.appendChild(d);
+      });
+
+      shown = filtered();
+      if (selected >= shown.length) selected = Math.max(0, shown.length - 1);
+      const list = $("list");
+      list.innerHTML = "";
+      if (!shown.length) {
+        const e = document.createElement("div");
+        e.className = "empty";
+        const key = GROUPS[group][0];
+        e.textContent = !anims.length ? "Waiting for the list from the game (Lua mod SefiroAnimationMenu)."
+          : query ? "No animation with this name: clear the search."
+          : key === "fav" ? "No favorites yet: press * on an animation to add it."
+          : key === "recent" ? "The animations you play in this session show up here."
+          : "No animations in this tab.";
+        list.appendChild(e);
+      }
+      const favs = new Set(anims.filter(a => a.group === "fav").map(a => a.name));
+      shown.forEach((a, i) => {
+        const li = document.createElement("li");
+        li.dataset.i = i;
+        if (i === selected) li.classList.add("selected");
+        if (a.name === status.playing) li.classList.add("playing");
+        const p = pretty(a.name);
+        const n = document.createElement("span"); n.className = "name"; n.textContent = p.text;
+        li.appendChild(n);
+        if (p.pre) { const t = document.createElement("span"); t.className = "pre"; t.textContent = p.pre; li.appendChild(t); }
+        if (favs.has(a.name)) { const s = document.createElement("span"); s.className = "star"; s.textContent = "★"; li.appendChild(s); }
+        const l = document.createElement("span"); l.className = "len"; l.textContent = a.cold ? "not loaded" : a.len ? `${a.len} s` : "";
+        if (a.cold) li.classList.add("cold");
+        li.appendChild(l);
+        list.appendChild(li);
+      });
+      const sel = list.children[selected];
+      if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: "nearest" });
+    }
+
+    function renderHeader() {
+      const who = $("who");
+      const fp = cam.fp === "1";
+      who.className = "who" + (fp ? " none" : "");
+      who.innerHTML = fp ? "<b>switch to third person</b>" : "";
+      const md = $("bar").querySelector('[data-act="mode"]');
+      md.firstChild.nodeValue = pure ? "pure" : "game";
+      const body = status.body && status.body !== "Humanoid" ? status.body.replace(/,/g, ", ") : "";
+      $("body").textContent = body ? "body: " + body : "animations on your character";
+      const rt = $("bar").querySelector('[data-act="root"]');
+      rt.firstChild.nodeValue = status.root === "0" ? "root motion off" : "root motion on";
+      rt.classList.toggle("on", status.root === "0");
+    }
+
+    function renderCam() {
+      const panel = $("campanel");
+      panel.classList.toggle("open", onMe);
+      if (!onMe) return;
+      const on = cam.on === "1";
+      $("camname").textContent = on ? (CAM_NAMES[cam.preset] || cam.preset || "") : "off";
+      const pr = $("presets");
+      if (!pr.children.length) {
+        PRESETS.forEach(([key, label], i) => {
+          const b = document.createElement("button");
+          b.dataset.preset = i + 1;
+          b.innerHTML = `${label}<kbd>${i + 1}</kbd>`;
+          pr.appendChild(b);
+        });
+      }
+      [...pr.children].forEach((b, i) => b.classList.toggle("on", on && cam.preset === PRESETS[i][0]));
+      panel.querySelector('[data-act="camspin"]').classList.toggle("on", cam.spin === "1");
+    }
+
+    function renderDeck() {
+      const playing = status.playing && status.playing !== "-" ? status.playing : "";
+      const now = $("now");
+      now.className = "title" + (playing ? "" : " idle");
+      now.textContent = playing === "rest_pose" ? "Rest pose" : playing ? pretty(playing).text : "No animation";
+
+      const ruler = $("ruler");
+      ruler.innerHTML = '<div class="base"></div>';
+      const len = pos && pos.len > 0 ? pos.len : 0;
+      ruler.classList.toggle("empty", !len);
+      $("time").innerHTML = len ? `<b>${pos.t.toFixed(2)}</b> / ${len.toFixed(2)} s` : "";
+      if (len) {
+        const steps = [0.05, 0.1, 0.25, 0.5, 1, 2];
+        const step = steps.find(s => len / s <= 6) || 5;
+        for (let t = 0; t <= len + 1e-6; t += step / 2) {
+          const major = Math.abs(t / step - Math.round(t / step)) < 1e-6;
+          const d = document.createElement("div");
+          d.className = "tick" + (major ? "" : " minor");
+          d.style.left = `${(t / len) * 100}%`;
+          ruler.appendChild(d);
+          if (major && t > 0 && t < len - step * 0.4) {
+            const lb = document.createElement("div");
+            lb.className = "lab"; lb.style.left = `${(t / len) * 100}%`; lb.textContent = t.toFixed(step < 0.1 ? 2 : 1);
+            ruler.appendChild(lb);
+          }
+        }
+        const a = parseFloat(ab.a), b = parseFloat(ab.b);
+        if (!isNaN(a)) {
+          const r = document.createElement("div");
+          r.className = "ab" + (isNaN(b) ? " open" : "");
+          r.style.left = `${(a / len) * 100}%`;
+          r.style.width = `${((isNaN(b) ? a : b) - a) / len * 100}%`;
+          ruler.appendChild(r);
+        }
+        const h = document.createElement("div");
+        h.className = "head"; h.style.left = `calc(${Math.min(1, pos.t / len) * 100}% - 1px)`;
+        ruler.appendChild(h);
+      }
+
+      $("speed").textContent = paused ? "paused" : `${SPEEDS[speedIndex]}×`;
+      const tr = $("transport");
+      tr.querySelector('[data-act="pause"]').classList.toggle("on", paused);
+      tr.querySelector('[data-act="loop"]').classList.toggle("on", loop);
+
+      const chips = [];
+      if (!isNaN(parseFloat(ab.a))) chips.push([isNaN(parseFloat(ab.b)) ? "A marked" : "A-B section", "brass"]);
+      if (tour) chips.push([`tour ${tour.i} of ${tour.items.length}`, "lit"]);
+      $("chips").innerHTML = chips.map(([t, c]) => `<span class="chip ${c}">${t}</span>`).join("");
+    }
+
+    function render() { renderHeader(); renderList(); renderCam(); renderDeck(); }
+
+    // ------------------------------------------------------------------ mouse
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (b) {
+        if (b.hasAttribute("data-help-close")) $("help").classList.remove("open");
+        else if (b.dataset.act && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act]();
+        else if (b.dataset.preset) send("cam preset " + b.dataset.preset);
+        b.blur();
+        render();
+        return;
+      }
+      const tab = e.target.closest("nav div");
+      if (tab) { group = Number(tab.dataset.i); selected = 0; render(); return; }
+      const li = e.target.closest("li");
+      if (li) {
+        // Double-click counted here: the first click redraws the list, so the second one lands on a new element and
+        // the browser does not fire "dblclick". Two clicks on the same row within 450 ms = play.
+        const i = Number(li.dataset.i), now = performance.now();
+        const twice = lastClick.i === i && now - lastClick.t < 450;
+        lastClick = twice ? { i: -1, t: 0 } : { i, t: now };
+        selected = i;
+        if (twice) { ACTIONS.play(); render(); } else renderList();
+        return;
+      }
+      const f = e.target.closest("[data-foot]");
+      if (f) {
+        const k = f.dataset.foot;
+        if (k === "help") $("help").classList.add("open");
+        else if (ACTIONS[k]) ACTIONS[k]();
+        render();
+        return;
+      }
+    });
+    $("ruler").addEventListener("click", (e) => {
+      if (!pos || !(pos.len > 0)) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      const t = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * pos.len;
+      paused = true; sendSpeed();
+      send("seek " + t.toFixed(3));
+      render();
+    });
+    $("q").addEventListener("input", (e) => { query = e.target.value.trim(); selected = 0; renderList(); });
+
+    // Camera pad: dragging (accumulated and sent every 50 ms) and the wheel.
+    (() => {
+      const pad = $("pad");
+      let drag = null, acc = [0, 0];
+      pad.addEventListener("mousedown", (e) => { drag = [e.clientX, e.clientY]; pad.classList.add("drag"); e.preventDefault(); });
+      window.addEventListener("mousemove", (e) => {
+        if (!drag) return;
+        acc[0] += e.clientX - drag[0]; acc[1] += e.clientY - drag[1];
+        drag = [e.clientX, e.clientY];
+      });
+      window.addEventListener("mouseup", () => { drag = null; pad.classList.remove("drag"); });
+      setInterval(() => {
+        const dx = Math.round(acc[0]), dy = Math.round(acc[1]);
+        if (dx || dy) { send(`cam drag ${dx}_${dy}`); acc = [0, 0]; }
+      }, 50);
+      pad.addEventListener("wheel", (e) => { send("cam zoom " + (e.deltaY > 0 ? 1 : -1)); e.preventDefault(); }, { passive: false });
+    })();
+
+    // ------------------------------------------------------------------ keyboard
+    document.addEventListener("keydown", (e) => {
+      const k = e.key;
+      const help = $("help");
+      if (help.classList.contains("open")) {
+        if (k === "?" || k === "Escape") help.classList.remove("open");
+        e.preventDefault();
+        return;
+      }
+      // search box active: letters go there; arrows, Enter and Esc still work
+      if (searching()) {
+        if (k === "Escape") { $("q").blur(); e.preventDefault(); }
+        else if (k === "ArrowDown") { if (shown.length) selected = (selected + 1) % shown.length; e.preventDefault(); renderList(); }
+        else if (k === "ArrowUp") { if (shown.length) selected = (selected - 1 + shown.length) % shown.length; e.preventDefault(); renderList(); }
+        else if (k === "Enter") { ACTIONS.play(); e.preventDefault(); render(); }
+        return;
+      }
+      if (e.code && CAM_NUM[e.code]) {   // before "/": Num / is the camera, not the search
+        if (onMe) send("cam " + CAM_NUM[e.code]);
+        e.preventDefault(); render(); return;
+      }
+      if ((e.ctrlKey && (k === "f" || k === "F")) || k === "/") { $("q").focus(); $("q").select(); e.preventDefault(); return; }
+      if (onMe && CAM_HOLD[e.code]) {
+        if (!e.repeat && !held.has(e.code)) { held.add(e.code); send(`cam move ${CAM_HOLD[e.code][0]}${CAM_HOLD[e.code][1]}`); }
+        e.preventDefault(); return;
+      }
+      if (onMe && /^Digit[1-6]$/.test(e.code)) { send("cam preset " + e.code.slice(5)); e.preventDefault(); render(); return; }
+      if (onMe && e.code === "KeyR") { ACTIONS.camreset(); e.preventDefault(); return; }
+      if (onMe && e.code === "KeyT") { ACTIONS.camspin(); e.preventDefault(); render(); return; }
+      if (e.code === "KeyM") { ACTIONS.root(); e.preventDefault(); render(); return; }
+
+      let handled = true;
+      if (k === "ArrowRight") { group = (group + 1) % GROUPS.length; selected = 0; }
+      else if (k === "ArrowLeft") { group = (group - 1 + GROUPS.length) % GROUPS.length; selected = 0; }
+      else if (k === "ArrowDown") { if (shown.length) selected = (selected + 1) % shown.length; }
+      else if (k === "ArrowUp") { if (shown.length) selected = (selected - 1 + shown.length) % shown.length; }
+      else if (k === "PageDown") { selected = Math.min(shown.length - 1, selected + 12); }
+      else if (k === "PageUp") { selected = Math.max(0, selected - 12); }
+      else if (k === "Enter") ACTIONS.play();
+      else if (k === " ") ACTIONS.pause();
+      else if (k === ",") ACTIONS.stepb();
+      else if (k === ".") ACTIONS.stepf();
+      else if (k === "[") ACTIONS.marka();
+      else if (k === "]") ACTIONS.markb();
+      else if (k === "\\") ACTIONS.abclear();
+      else if (k === "*") { const a = shown[selected]; if (a) send("fav " + a.name); }
+      else if (k === "?") { help.classList.add("open"); }
+      else if (k === "+" || k === "=") ACTIONS.faster();
+      else if (k === "-" || k === "_") ACTIONS.slower();
+      else if (k === "F1") ACTIONS.loop();
+      else if (k === "F2") ACTIONS.stop();
+      else if (k === "F5") ACTIONS.mode();
+      else if (k === "F7") ACTIONS.home();
+      else if (k === "F8") ACTIONS.tour();
+      else if (k === "F9") ACTIONS.refpose();
+      else if (k === "Escape") { releaseCam(); readym.sendAnimMenuClose(); }
+      else handled = false;   // letters do nothing outside the search box
+      e.preventDefault();
+      if (handled) render();
+    });
+    document.addEventListener("keyup", (e) => {
+      if (held.has(e.code)) { held.delete(e.code); send(`cam move ${CAM_HOLD[e.code][0]}0`); }
+    });
+    window.addEventListener("blur", releaseCam);   // the menu loses the keyboard: no key stays "held"
+
+    // ------------------------------------------------------------------ from the game
+    readym.onAnimMenuList((text) => {
+      const kv = (s) => {
+        const o = {};
+        for (const p of s.split(" ")) { const i = p.indexOf("="); if (i > 0) o[p.slice(0, i)] = p.slice(i + 1); }
+        return o;
+      };
+      const next = [];
+      for (const line of text.split(/\r?\n/)) {
+        if (!line || line === "v1") continue;
+        if (line.startsWith("#status ")) { status = kv(line.slice(8)); continue; }
+        if (line.startsWith("#ab ")) { ab = kv(line.slice(4)); continue; }
+        if (line.startsWith("#cam ")) { cam = kv(line.slice(5)); continue; }
+        const [g, name, len, flag] = line.split("|");
+        if (g && name) next.push({ group: g, name, len, cold: flag === "u" });   // u: not in memory, loaded on play
+      }
+      anims = next;
+      byName = {};
+      for (const a of anims) if (a.group !== "fav") byName[a.name] = a;
+      render();
+    });
+
+    readym.onAnimMenuPos((text) => {
+      const [t, len] = text.split(" ").map(parseFloat);
+      pos = isNaN(t) || isNaN(len) ? null : { t, len };
+      renderDeck();
+    });
+
+    render();
+    readym.sendAnimMenuReady();
+    send("mode pure");
+  </script>
+</body>
+</html>

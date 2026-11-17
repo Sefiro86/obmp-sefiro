@@ -1,0 +1,11 @@
+{
+  "uniqueId": "Sefiro.AnimationMenu",
+  "version": "0.9.1",
+  "name": "Sefiro Animation Menu",
+  "author": "Sefiro",
+  "description": "An animation test bench on your own character (Alt+Y): every animation for your current body, human or creature, with a bench camera, slow motion, pause, frame step, A-B loop and root motion on/off. Needs the UE4SS Lua mod SefiroAnimationMenu on each client.",
+  "link": "https://github.com/Sefiro86/obmp-sefiro/tree/main/animation-menu",
+  "dependencies": [
+    { "uniqueId": "OblivionMP.SDK", "minimumVersion": "1.1.0" }
+  ]
+}

@@ -9,6 +9,7 @@ Each project lives in its own folder, with its own guide, changelog and releases
 | Project | What it does | Latest release |
 |---|---|---|
 | [Chat History](chat-history) | Up and Down in the chat bring back the lines you sent before, even after a restart. | [1.0.0](https://github.com/Sefiro86/obmp-sefiro/releases/tag/chat-history-v1.0.0) |
+| [Animation Menu](animation-menu) | An animation test bench on your own character: every animation for your body, with a bench camera, slow motion, frame step and loops. | [0.9.1 beta](https://github.com/Sefiro86/obmp-sefiro/releases/tag/animation-menu-v0.9.1) |
 | [Transformation Menu](transformation-menu) | Turn into one of 37 game creatures, or into a custom character, with its body, animations, sounds and attack damage. | [0.9.0 beta](https://github.com/Sefiro86/obmp-sefiro/releases/tag/transformation-menu-v0.9.0) |
 
 ## Installing a mod
