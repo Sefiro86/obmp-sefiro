@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "id": "spriggan",
+  "name": "Spriggan",
+  "group": "characters",
+  "race": "/Game/Forms/actors/race/ObmpSprigganRace.ObmpSprigganRace",
+  "requires": {
+    "pak": "0000_ObmpSpriggan_P.pak",
+    "plugin": "ObmpSpriggan.esp"
+  },
+  "preload": [
+    { "plugin": "ObmpSpriggan.esp", "id": "000802" }
+  ],
+  "syncMap": [
+    { "plugin": "ObmpSpriggan.esp", "id": "000802", "asset": "/Game/Forms/actors/npc/ObmpSpriggan01.ObmpSpriggan01" },
+    { "plugin": "ObmpSpriggan.esp", "id": "000803", "asset": "/Game/Forms/actors/race/ObmpSprigganRace.ObmpSprigganRace" }
+  ],
+  "keepVisible": ["spriggan"],
+  "retargetMesh": "/Game/Spriggan/Mesh/SK_Spriggan_OBR.SK_Spriggan_OBR"
+}
