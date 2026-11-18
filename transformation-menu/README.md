@@ -4,7 +4,7 @@ Turn into one of the game's creatures, or into a custom character, in OblivionMP
 inventory and spells, while the creature brings its body, animations, sounds and attack damage. The other players
 see the creature too.
 
-**Version 0.9.0 (beta).** Most creatures have been tested in game; see [Known limitations](#known-limitations).
+**Version 0.9.1 (beta).** Most creatures have been tested in game; see [Known limitations](#known-limitations).
 
 ## Features
 
@@ -22,6 +22,10 @@ see the creature too.
   return to normal. Creatures have no animations for weapons in hand.
 - **Character packs**: custom humanoid characters (a new race with its own body) show up in the menu, with optional
   skin variants. Characters installed without a pack file are **detected automatically**.
+- **IK Rig characters**: a pack can bring a character with its own proportions. The game animates a hidden human
+  body, which holds the weapons; the character copies its pose through an IK Retargeter, with hands on the weapon and
+  feet on the ground.
+- **Inventory preview**: the 3D character in the inventory (I) shows your transformation too.
 - **Multiplayer**: everyone with the mod sees your transformation and your creature's attacks.
 - **Light on the server**: the server only keeps who is transformed into what and adjusts the damage of hits.
 
@@ -42,10 +46,12 @@ The mod has two parts:
      ```
      or copy `mods\Sefiro.TransformationMenu` into the server's `mods` folder by hand.
    - Start the server.
-2. **Each player's PC**: the UE4SS Lua mod that changes the body in game.
+2. **Each player's PC**: the UE4SS Lua mods that change the body in game.
    - Close the game.
-   - Run `.\Install-Client.ps1` from the release folder. It copies `lua\SefiroTransformation` into
-     `%APPDATA%\ReadyM.Launcher\Oblivion\Mods` and enables it in `mods.txt`.
+   - Run `.\Install-Client.ps1` from the release folder. It copies `lua\SefiroTransformation` and
+     `lua\SefiroTransformationSync` into `%APPDATA%\ReadyM.Launcher\Oblivion\Mods` and enables them in `mods.txt`.
+     `SefiroTransformationSync` registers the forms of the installed character packs with the game (see
+     [Character packs](#character-packs)); it does nothing when no pack needs it.
 
 If PowerShell refuses to run the scripts, start it with `powershell -ExecutionPolicy Bypass` or right-click the
 script and choose **Run with PowerShell**.
@@ -61,6 +67,8 @@ for lines starting with `[SefiroTransformation]`, for example `37 creatures from
   `troll`, `mountainlion`, `flameatronach`, `spiderdaedra`... Character packs use `pack:<id>` and
   `pack:<id>:<skin>`.
 - **Shift+F3** turns the diagnostic lines in `UE4SS.log` on and off.
+- **Shift+F9** (IK Rig characters, only on your screen) cycles: normal, the hidden human body alone, both bodies.
+  Useful to tell whether a pose comes from the game's animation or from the character.
 
 ### Who can transform
 
@@ -84,6 +92,10 @@ A pack only appears when its `.pak` is in `Content\Paks\~mods` and its plugin is
 whose race and Unreal asset are installed, but which has no pack file, appears under **Detected characters** with its
 default look.
 
+A pack can list its plugin forms in `syncMap`: `SefiroTransformationSync` then adds them to the game's form map at
+startup, so the character needs no other Lua mod. Load-order indexes are read from `Plugins.txt`, including the
+Deluxe rule (without the Deluxe edition, plugins after `AltarDeluxe.esp` move down by one).
+
 Custom characters must be installed by every player who should see them, like any other game mod.
 
 ## Known limitations
@@ -104,7 +116,8 @@ Custom characters must be installed by every player who should see them, like an
 
 - **Server:** stop it and delete `mods\Sefiro.TransformationMenu`.
 - **Player's PC:** close the game and run `.\Uninstall-Client.ps1`, or delete
-  `%APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation` and its line in `mods.txt`.
+  `%APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation` and `...\SefiroTransformationSync` and their lines
+  in `mods.txt`.
 
 ## Building from source
 

@@ -1,5 +1,5 @@
--- SefiroTransformation 0.9.0: the player swaps body and becomes a game creature (troll, ogre, minotaur...).
--- See E:\claude_magics\oblivion_mp\TRASFORMAZIONE_PLAYER.md (sections 9-10).
+-- SefiroTransformation 0.9.1: the player swaps body and becomes a game creature (troll, ogre, minotaur...).
+-- See README.md and packs\README.md of Sefiro Transformation Menu.
 --
 -- "Body swap" method on the player's pawn. The Nexus mod "Power of Dormin" showed that this can be done:
 -- the technical information comes from there, the code is ours.
@@ -147,6 +147,39 @@ do
         end
     end
 end
+-- Third step of the game's rule (RVA 0x65D1740, see obmp_plugin_index.lua in ObmpSyncMapClone): AltarDeluxe.esp is
+-- deactivated without the Deluxe entitlement, so every plugin after it moves down by one. Without this step a pack
+-- plugin was 0x0D on the Standard edition instead of 0x0C: its preload form had no SyncMap entry, the race never
+-- loaded and the player stayed human (2026-11-17, Spriggan). The flag is read at preload time, not at script load.
+local DELUXE_INDEX = PLUGIN_INDEX["altardeluxe.esp"]
+local deluxeFlag = nil
+local function hasDeluxe()
+    if deluxeFlag ~= nil then return deluxeFlag end
+    local ok, v = pcall(function()
+        local lib = StaticFindObject("/Script/Altar.Default__VAltarEntitlementBlueprintLibrary")
+        if lib and lib:IsValid() then return lib:HasDeluxeEntitlement() end
+        return nil
+    end)
+    if ok and type(v) == "boolean" then deluxeFlag = v end
+    return deluxeFlag
+end
+-- Possible load indexes of a plugin: one, or two when the Deluxe flag cannot be read yet.
+local function loadIndexes(plugin)
+    local key = (plugin or ""):lower()
+    local idx = PLUGIN_INDEX[key]
+    if not idx then return {} end
+    if DELUXE_INDEX == nil or idx < DELUXE_INDEX or key == "altardeluxe.esp" then return { idx } end
+    local d = hasDeluxe()
+    if d == true then return { idx } elseif d == false then return { idx - 1 } end
+    return { idx - 1, idx }
+end
+local function resolveForms(specs)
+    local forms = {}
+    for _, s in ipairs(specs or {}) do
+        for _, idx in ipairs(loadIndexes(s.plugin)) do forms[#forms + 1] = idx * 0x1000000 + (s.id & 0xFFFFFF) end
+    end
+    return forms
+end
 
 local PACKS = {}          -- id -> pack read (including unavailable ones, for the log)
 local loadedFiles = {}    -- packs\ files already read
@@ -176,19 +209,20 @@ local function loadPacks()
         if why then
             print(TAG .. "pack " .. file .. " not available: " .. why .. "\n")
         else
-            local forms = {}
+            local formSpecs = {}   -- resolved to FormIDs at preload time (Deluxe rule, see loadIndexes)
             for _, f in ipairs(pack.preload or {}) do
-                local idx = PLUGIN_INDEX[(f.plugin or ""):lower()]
                 local local_id = tonumber(f.id or "", 16)
-                if idx and local_id then forms[#forms + 1] = idx * 0x1000000 + (local_id & 0xFFFFFF) end
+                if f.plugin and local_id then formSpecs[#formSpecs + 1] = { plugin = f.plugin, id = local_id } end
             end
+            local forms = resolveForms(formSpecs)
             for _, k in ipairs(pack.keepVisible or {}) do KEEP_VISIBLE[#KEEP_VISIBLE + 1] = k:lower() end
             local skins = pack.skins or {}
             if #skins == 0 then skins = { { id = "default" } } end
             for i, skin in ipairs(skins) do
                 local key = "pack:" .. pack.id .. (i == 1 and "" or (":" .. skin.id))
-                CREATURES[key] = { kind = "race", race = pack.race, forms = forms, pack = pack.id,
-                                   skinTex = (skin.albedo and skin.nnr) and { albedo = skin.albedo, nnr = skin.nnr } or nil }
+                CREATURES[key] = { kind = "race", race = pack.race, forms = forms, formSpecs = formSpecs, pack = pack.id,
+                                   skinTex = (skin.albedo and skin.nnr) and { albedo = skin.albedo, nnr = skin.nnr } or nil,
+                                   retargetMesh = pack.retargetMesh }
                 table.insert(CYCLE, key)
             end
             PACKS[pack.id] = pack
@@ -324,6 +358,7 @@ local preloads = {}                   -- creature -> request id
 local function preload(name)
     if preloads[name] then return end
     local def = CREATURES[name]
+    if def.formSpecs then def.forms = resolveForms(def.formSpecs) end   -- Deluxe flag readable now
     local ok, res = pcall(function()
         local sub = FindFirstOf("VPairedAssetsLoadingSubsystem")
         if def.forms then
@@ -334,12 +369,17 @@ local function preload(name)
         return sub:RegisterPreloadRequestFromFormID(def.form, 2, PRELOAD_OWNER)   -- 2 = High
     end)
     preloads[name] = ok and res or -1
-    log(string.format("preload %s (form %08X): %s", name, def.form or (def.forms and def.forms[1]) or 0,
+    log(string.format("preload %s (form %08X%s): %s", name, def.form or (def.forms and def.forms[1]) or 0,
+        (def.forms and #def.forms > 1) and string.format(" +%d, Deluxe=%s", #def.forms - 1, tostring(deluxeFlag)) or
+        (def.formSpecs and (", Deluxe=" .. tostring(deluxeFlag)) or ""),
         ok and ("request " .. tostring(res)) or ("error " .. tostring(res))))
 end
 local function unpreload(name)
     local id = preloads[name]
     if not id then return end
+    -- race packs: the request is what keeps the race form loaded; releasing it let the game destroy the race while
+    -- it could still be found and applied (crash 2026-11-17 19:37). Kept for the session (a few small assets).
+    if CREATURES[name] and CREATURES[name].kind == "race" then return end
     for _, st in pairs(active) do if st.creature == name then return end end
     preloads[name] = nil
     if id ~= -1 then
@@ -374,7 +414,9 @@ local function localPawn()
     return nil
 end
 
+local invPreview, invPreviewKey = nil, nil   -- inventory 3D preview character (see the tick)
 local function pawnByAddress(addr)
+    if invPreviewKey and valid(invPreview) and tostring(addr) == invPreviewKey then return invPreview end
     for _, cn in ipairs({ "VPairedPawn", "Character" }) do
         local all = FindAllOf(cn)
         if all then
@@ -637,7 +679,19 @@ local function raceOf(pawn)
     return r
 end
 
+-- Two race changes too close together crash the game: OnRaceOrSexChanged (RVA 0x485F2A0 -> 0x4862840) cancels the
+-- character build still in progress (actor+0xEA0) and re-reads Race.FemaleFullBodies/MaleFullBodies; the copy then
+-- reads freed memory (AV in memcpy from 0x0 / 0x400000001, RVA 0x47A8690). Seen 2026-11-17: skin change (06:53),
+-- pause menu while the game re-synced the race (18:01), Spriggan -> Succubus in the same tick (19:37).
+-- Rule: at most one race change per pawn every RACE_GAP_TICKS; a race-to-race switch changes the race only once.
+local RACE_GAP_TICKS = 15            -- 1.5 s
+local lastRaceChange = {}            -- pawn address -> tickCount of our last OnRaceOrSexChanged
+local function raceBusy(pawn)
+    local t = lastRaceChange[addrOf(pawn) or 0]
+    return t ~= nil and tickCount - t < RACE_GAP_TICKS
+end
 local function setRace(pawn, race)
+    lastRaceChange[addrOf(pawn) or 0] = tickCount
     return pcall(function() pawn.Race = race; pawn:OnRaceOrSexChanged() end)
 end
 
@@ -771,20 +825,136 @@ local function soundTick(st)
     end
 end
 
+-- Original race of the pawn: kept as path + FormID, never as a bare object. While the player is transformed nothing
+-- uses the original race and the game unloads it: a Lua reference does not keep it alive and became "TESRace
+-- None.None" within a minute (2026-11-17 19:47); restoring it would apply a destroyed race. A preload request on
+-- the race's FormID (the game's own mechanism, as for the packs; LoadAsset is not allowed here) keeps it loaded
+-- until it is restored.
+local function raceInfo(obj)
+    if not valid(obj) then return nil end
+    local id = nil
+    pcall(function() id = obj.m_formID end)
+    return { path = fullName(obj):match("^%S+%s+(.+)$"), formId = id }
+end
+-- A preload request on a race FormID is refused by the game (request 0: the subsystem only takes NPC forms;
+-- trial 2026-11-17 19:56), so the race is held by a rooted /Script/Engine.ObjectLibrary created once: its
+-- "Objects" array (strong references) keeps every original race alive. One vanilla race per player: negligible.
+local raceHolder, heldRaces = nil, {}
+local function holderObj()
+    if valid(raceHolder) then return raceHolder end
+    -- Outer: the package of the class itself (/Script/Engine, always loaded), taken with GetOuter(); a lookup by
+    -- name ("/Engine/Transient") failed in UE4SS with "GetPackageNameFromLongName: Name wasn't long" (20:03).
+    local cls = StaticFindObject("/Script/Engine.ObjectLibrary")
+    if not valid(cls) then log("race holder not created: class ObjectLibrary not found"); return nil end
+    local outers = {}
+    pcall(function() outers[#outers + 1] = { "class package", cls:GetOuter() } end)
+    pcall(function() outers[#outers + 1] = { "game instance", FindFirstOf("GameInstance") } end)
+    local errs = {}
+    for _, o in ipairs(outers) do
+        if valid(o[2]) then
+            local ok, h = pcall(function() return StaticConstructObject(cls, o[2], FName("None"), 0x80 | 0x40) end)   -- RootSet | Transient
+            if ok and valid(h) then
+                raceHolder = h
+                log("race holder created (outer " .. o[1] .. "): " .. fullName(h))
+                return raceHolder
+            end
+            errs[#errs + 1] = o[1] .. ": " .. tostring(h)
+        end
+    end
+    log("race holder not created: " .. table.concat(errs, " | "))
+    return nil
+end
+local function holdRace(info, obj)
+    if not info or not info.path or heldRaces[info.path] or not valid(obj) then return end
+    local h = holderObj()
+    if not h then return end
+    local ok, err = pcall(function()
+        local arr = h.Objects
+        arr[arr:GetArrayNum() + 1] = obj
+    end)
+    local n, first = 0, "?"
+    pcall(function() n = h.Objects:GetArrayNum(); first = fullName(h.Objects[n]) end)
+    heldRaces[info.path] = ok and n > 0 and first == fullName(obj)
+    log(string.format("original race %s kept alive by the holder: %s (objects %d, last %s)%s", info.path,
+        tostring(heldRaces[info.path]), n, first, ok and "" or (" error " .. tostring(err))))
+end
+local function releaseRace(info) end   -- the holder keeps the race for the session (see holdRace)
+local function findRace(info)
+    if not info or not info.path then return nil end
+    local o = StaticFindObject(info.path)
+    if valid(o) and fullName(o) == "TESRace " .. info.path and loadedFully(o) then return o end
+    return nil
+end
+local raceHandover = {}   -- key -> original race info (raceInfo) carried over by a direct race-to-race switch
+local raceReadyAt = {}    -- creature -> tick from which the race may be applied (after our preload request)
+-- IK Rig packs ("retargetMesh", 2026-11-17, Spriggan): the race keeps a human body, animated by the game and holding
+-- the weapons, but hidden; the character's mesh is a child component of it whose post-process AnimBlueprint
+-- (ABP_ObmpRetarget_<Char>, Retarget Pose From Mesh from the attached parent) copies the human pose through the IK
+-- Retargeter, with the hands pinned to the human hands (on the weapon). No SetAnimClass: the post-process comes
+-- from the mesh asset. The hidden human body must keep animating: AlwaysTickPoseAndRefreshBones.
+local function removeRetargetBody(st)
+    if valid(st.retarget) then pcall(function() st.retarget:K2_DestroyComponent(st.retarget) end) end
+    st.retarget = nil
+    if valid(st.m) then
+        pcall(function() st.m:SetHiddenInGame(st.retargetHiddenWas == true, false) end)
+        if st.retargetTickWas ~= nil then pcall(function() st.m.VisibilityBasedAnimTickOption = st.retargetTickWas end) end
+    end
+end
+local function addRetargetBody(st, mesh)
+    local skc = StaticFindObject("/Script/Engine.SkeletalMeshComponent")
+    local m = st.m
+    pcall(function() st.retargetHiddenWas = m.bHiddenInGame == true end)
+    pcall(function() st.retargetTickWas = m.VisibilityBasedAnimTickOption end)
+    local ok, err = pcall(function()
+        local c = st.pawn:AddComponentByClass(skc, true, NO_MOVE, false)
+        c:K2_AttachToComponent(m, FName("None"), 2, 2, 2, false)   -- snap: same transform as the human body
+        setMesh(c, mesh)
+        pcall(function() c:SetCollisionEnabled(0) end)
+        pcall(function() c.VisibilityBasedAnimTickOption = 0 end)
+        st.retarget = c
+    end)
+    if not ok or not valid(st.retarget) then log("retarget body not created: " .. tostring(err)); return false end
+    pcall(function() m.VisibilityBasedAnimTickOption = 0 end)   -- the hidden source keeps animating
+    pcall(function() m:SetHiddenInGame(true, false) end)        -- not propagated: weapons and the child stay visible
+    local pp = "none"
+    pcall(function() pp = fullName(st.retarget:GetPostProcessInstance()) end)
+    log("retarget body " .. fullName(mesh) .. " on the hidden human body, post-process " .. pp)
+    return true
+end
+
 local function applyRace(key, pawn, name, def)
+    -- never trust an object merely found in memory: it may be an unloaded leftover being destroyed. Our preload
+    -- request keeps the form (and through it the race) loaded; give it a moment before the first use.
+    if not preloads[name] then
+        preload(name)
+        raceReadyAt[name] = tickCount + 5
+        return "loading", def.race .. " (preload requested)"
+    end
+    if tickCount < (raceReadyAt[name] or 0) then return "loading", def.race .. " (preload settling)" end
+    if raceBusy(pawn) then return "loading", "previous race change still being built" end
     local race = StaticFindObject(def.race)
     if not valid(race) then return "loading", def.race end
+    local rmesh = nil
+    if def.retargetMesh then
+        rmesh = StaticFindObject(def.retargetMesh)
+        if not valid(rmesh) then return "loading", def.retargetMesh end
+        if not loadedFully(rmesh) then return "loading", def.retargetMesh .. " (loading in progress)" end
+    end
     if not loadedFully(race) then return "loading", def.race .. " (loading in progress)" end
     local m = nil
     pcall(function() m = pawn.MainSkeletalMeshComponent end)
     if not valid(m) then log("the pawn has no MainSkeletalMeshComponent: " .. fullName(pawn)); return "fail" end
     local st = { creature = name, def = def, kind = "race", mode = "R", pawn = pawn, pawnAddr = addrOf(pawn), m = m,
                  parts = {}, hiddenComps = {}, hiddenActors = {}, mats = {}, raceObj = race }
-    st.raceWas = raceOf(pawn)
+    local wasObj = raceOf(pawn)
+    st.raceWasInfo = raceHandover[key] or raceInfo(wasObj)
+    if not raceHandover[key] then holdRace(st.raceWasInfo, wasObj) end
+    raceHandover[key] = nil
     pcall(function() st.humanMesh = fullName(m.SkeletalMesh) end)
     local ok, err = setRace(pawn, race)
     if not ok then log("race change failed: " .. tostring(err):sub(1, 160)); return "fail" end
     hideHuman(st)
+    if rmesh then addRetargetBody(st, rmesh) end
     active[key] = st
     local okSkin, errSkin = pcall(applySkin, st)
     if not okSkin then log("skin: " .. tostring(errSkin)) end
@@ -792,7 +962,7 @@ local function applyRace(key, pawn, name, def)
     pcall(function() mesh = fullName(m.SkeletalMesh) end)
     pcall(function() merged = tostring(pawn.MergedMeshComponent.MergedMeshComponent.bHiddenInGame) end)
     log(string.format("transformed %s (%s) into %s: race %s -> %s, body %s, merged mesh hidden=%s, %d hidden components",
-        key, fullName(pawn), name, fullName(st.raceWas), fullName(race), mesh, merged, countOf(st.hiddenComps)))
+        key, fullName(pawn), name, tostring(st.raceWasInfo and st.raceWasInfo.path), fullName(race), mesh, merged, countOf(st.hiddenComps)))
     return "ok"
 end
 
@@ -926,12 +1096,25 @@ end
 local function revert(key)
     local st = active[key]
     if not st then return end
+    if st.kind == "race" and valid(st.pawn) and st.raceWasInfo then
+        -- the original race must be alive and the previous race change finished, otherwise wait (the state stays
+        -- active and the tick calls revert again): applying a destroyed race or two changes in a row crashes
+        local was = findRace(st.raceWasInfo)
+        if not was or raceBusy(st.pawn) then
+            if not st.revertWaitLogged then
+                st.revertWaitLogged = true
+                log("going back to " .. tostring(st.raceWasInfo.path) .. ": waiting for " .. (was and "the previous race change" or "the race to be loaded"))
+            end
+            return
+        end
+        active[key] = nil
+        removeRetargetBody(st)
+        local ok, err = setRace(st.pawn, was)
+        if not ok then log("race restore failed: " .. tostring(err):sub(1, 160)) end
+        releaseRace(st.raceWasInfo)
+    end
     active[key] = nil
     if st.kind == "race" then
-        if valid(st.pawn) and st.raceWas ~= nil then
-            local ok, err = setRace(st.pawn, st.raceWas)
-            if not ok then log("race restore failed: " .. tostring(err):sub(1, 160)) end
-        end
         showHuman(st)
         log("transformation " .. st.creature .. " removed from " .. key)
         unpreload(st.creature)
@@ -969,15 +1152,75 @@ local function revert(key)
     unpreload(st.creature)
 end
 
+-- Two-handed grip (2026-11-17, Spriggan): the character's post-process AnimBlueprint (ABP_ObmpTranslationLock_<Char>)
+-- has a Two Bone IK that puts the left hand on the weapon grip, switched by the BOOLEAN variable ObmpTwoHandIK; the
+-- engine blends it in/out every frame (AlphaBoolBlend 0.25 s / 0.12 s). The game animations carry no curve for it, so
+-- it is set from here, every tick (0.1 s), only when it changes: true while a two-handed weapon is drawn and really
+-- in hand, i.e. not during the draw/sheathe animation (AnimAction EQUIP_WEAPON 1 / UNEQUIP_WEAPON 2: the weapon
+-- anchor travels 54 cm then). First version: float ramped from maintain every 0.5 s -> visible jerks of the arm.
+-- TESObjectWEAP.Type enum from the executable: NONE 0, BLADE_ONE_HAND 1, BLADE_TWO_HAND 2, BLUNT_ONE_HAND 3,
+-- BLUNT_TWO_HAND 4, STAFF 5, MARKSMAN_BOW 6. Characters without the variable (Succubus) are left alone.
+local AA_EQUIP_WEAPON, AA_UNEQUIP_WEAPON = 1, 2
+local function isTwoHanded(t)
+    if type(t) == "number" then return t == 2 or t == 4 end
+    return tostring(t):upper():find("TWO_HAND", 1, true) ~= nil
+end
+local function twoHandTick(st)
+    if st.twoHandOff then return end
+    local inst = st.ppInst
+    if not valid(inst) then
+        pcall(function() inst = st.m:GetPostProcessInstance() end)
+        if not valid(inst) then return end
+        local has = false
+        pcall(function() has = type(inst.ObmpTwoHandIK) == "boolean" end)
+        if not has then st.twoHandOff = true; return end   -- shared post-process: no grip IK
+        st.ppInst = inst
+    end
+    local want, wtype, action = false, nil, nil
+    pcall(function()
+        if st.pawn:IsWeaponDrawn() then
+            local w = st.pawn.WeaponsPairingComponent.WeaponForm
+            if valid(w) then wtype = w.Type end
+            pcall(function()   -- (num() is defined further down: local conversion here)
+                local v = st.pawn.AnimationPairingComponent.LatestOblivionCharacterAnimationState.AnimAction
+                action = type(v) == "number" and v or tonumber(tostring(v))
+            end)
+            want = isTwoHanded(wtype) and action ~= AA_EQUIP_WEAPON and action ~= AA_UNEQUIP_WEAPON
+        end
+    end)
+    if want == st.twoHandIK then return end
+    st.twoHandIK = want
+    pcall(function() inst.ObmpTwoHandIK = want end)
+    log("two-handed grip IK " .. (want and "on" or "off") .. " (weapon type " .. tostring(wtype) .. ", action " .. tostring(action) .. ")")
+end
+
+-- Diagnosis of IK Rig packs (Shift+F9 cycles, only your own view): 0 normal (human body hidden), 1 human body only,
+-- 2 both visible. It shows whether a pose comes from the game's human body or from the character's retarget.
+local diag = { retarget = 0,
+    retargetNames = { [0] = "normal: human body hidden", "human body only (custom hidden)", "both visible" } }
 -- Every 0.5 s: new equipment to hide; if the game put the human body back, it is swapped again.
 local function maintain(st)
     if st.kind ~= "race" and valid(st.body) then pcall(forceGameThreadAnim, st) end   -- instance recreated by the game?
     hideHuman(st)
     if st.kind == "race" then
+        -- IK Rig pack: the human body stays hidden (the game may show it again on equipment/race refresh)
+        if valid(st.retarget) then
+            local humanHidden, customHidden = diag.retarget == 0, diag.retarget == 1
+            pcall(function() if st.m.bHiddenInGame ~= humanHidden then st.m:SetHiddenInGame(humanHidden, false) end end)
+            pcall(function() if st.retarget.bHiddenInGame ~= customHidden then st.retarget:SetHiddenInGame(customHidden, false) end end)
+        end
         -- the game may reapply the original race (loading, synchronization): ours is put back
         if valid(st.raceObj) and addrOf(raceOf(st.pawn)) ~= addrOf(st.raceObj) then
-            log("the game put the race of " .. fullName(st.pawn) .. " back: changing it again")
-            setRace(st.pawn, st.raceObj)
+            -- the game has just changed the race itself and is rebuilding the character: changing it again at once
+            -- is the double change that crashes (pause menu, 18:01). Wait RACE_GAP_TICKS from the first sighting.
+            st.raceBackSince = st.raceBackSince or tickCount
+            if tickCount - st.raceBackSince >= RACE_GAP_TICKS and not raceBusy(st.pawn) then
+                log("the game put the race of " .. fullName(st.pawn) .. " back: changing it again")
+                setRace(st.pawn, st.raceObj)
+                st.raceBackSince = nil
+            end
+        else
+            st.raceBackSince = nil
         end
         local okSkin, errSkin = pcall(applySkin, st)
         if not okSkin and not st.skinErrLogged then st.skinErrLogged = true; log("skin: " .. tostring(errSkin)) end
@@ -1334,6 +1577,23 @@ local function tick()
     local desired = {}
     for k, v in pairs(fileDesired) do desired[k] = v end
     if localOverride ~= nil then desired["self"] = (localOverride ~= "off") and localOverride or nil end
+    -- Inventory 3D preview (2026-11-17): the game builds a separate VInventoryPlayerCharacter (a VPairedCharacter)
+    -- from the player, so it showed the old character or a mix. It gets the same race form as the player, as one
+    -- more pawn keyed by its address (race packs only: creature forms swap AnimBlueprints, not done at runtime).
+    local selfDef = desired["self"] and CREATURES[desired["self"]]
+    if selfDef and selfDef.kind == "race" then
+        if tickCount % 5 == 0 or (invPreviewKey and not valid(invPreview)) then
+            invPreview, invPreviewKey = nil, nil
+            pcall(function()
+                for _, o in ipairs(FindAllOf("VInventoryPlayerCharacter") or {}) do
+                    if valid(o) and not fullName(o):find("Default__", 1, true) then
+                        invPreview, invPreviewKey = o, tostring(o:GetAddress()); break
+                    end
+                end
+            end)
+        end
+        if invPreviewKey then desired[invPreviewKey] = desired["self"] end
+    end
 
     -- remove what is no longer needed or whose pawn has changed/disappeared
     for key, st in pairs(active) do
@@ -1345,6 +1605,7 @@ local function tick()
         if not stillPawn then
             log("the pawn of " .. key .. " has changed (door, loading): form to redo")
             active[key] = nil          -- the old body is gone: nothing to restore
+            if st.kind == "race" then releaseRace(st.raceWasInfo) end
             if key == "self" and st.kind ~= "race" then setParallelAnim(true, "pawn changed") end
             if valid(st.holder) then pcall(function() st.holder:K2_DestroyComponent(st.holder) end) end
         elseif desired[key] ~= st.creature then
@@ -1358,6 +1619,14 @@ local function tick()
                 local okS, errS = pcall(applySkin, st)
                 if not okS then log("skin: " .. tostring(errS)) end
                 log("skin changed without changing race: " .. key .. " -> " .. st.creature)
+            elseif st.kind == "race" and nextDef and nextDef.kind == "race" then
+                -- another race character: no return to the human race in between (two changes in a row crash).
+                -- The pawn keeps the current race until the new one is applied; the original race is carried over.
+                removeRetargetBody(st)
+                showHuman(st)
+                active[key] = nil
+                raceHandover[key] = st.raceWasInfo
+                log("race switch " .. st.creature .. " -> " .. tostring(desired[key]) .. " without going back to " .. tostring(st.raceWasInfo and st.raceWasInfo.path))
             else
                 revert(key)
             end
@@ -1419,6 +1688,7 @@ local function tick()
     end
 
     for _, st in pairs(active) do
+        if st.kind == "race" then pcall(twoHandTick, st) end
         reveal(st)
         if tickCount % RESCAN_EVERY == 0 then maintain(st) end
     end
@@ -1717,6 +1987,10 @@ togglePresets = function()
     end
 end
 
+RegisterKeyBind(Key.F9, { ModifierKey.SHIFT }, function()
+    diag.retarget = (diag.retarget + 1) % 3
+    log("key: IK Rig diagnosis -> " .. diag.retargetNames[diag.retarget] .. " (applied within 0.5 s)")
+end)
 RegisterKeyBind(Key.F5, { ModifierKey.SHIFT }, function() modeRequested = true end)
 RegisterKeyBind(Key.F4, { ModifierKey.SHIFT }, function() markRequested = true end)
 
@@ -1731,4 +2005,4 @@ RegisterKeyBind(Key.F8, { ModifierKey.SHIFT }, function()
     log("key: local preview off")
 end)
 
-log("0.9.0 loaded (body swap). Command file: " .. STATE_FILE)
+log("0.9.1 loaded (body swap). Command file: " .. STATE_FILE)

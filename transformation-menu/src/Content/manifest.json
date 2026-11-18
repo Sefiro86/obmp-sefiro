@@ -1,6 +1,6 @@
 {
   "uniqueId": "Sefiro.TransformationMenu",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "name": "Sefiro Transformation Menu",
   "author": "Sefiro",
   "description": "Turn into game creatures (37 beasts, undead, daedra and Shivering Isles creatures) or custom characters, from a menu (Alt+U) or with /transform. The creature's body, animations, sounds and damage; works in multiplayer. Needs the UE4SS Lua mod SefiroTransformation on each client.",
