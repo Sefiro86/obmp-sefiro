@@ -47,7 +47,8 @@ if (-not $modloader) {
     throw "No 'modloader' folder in $ServerPath, so the Spriggan cannot be sent to players. Each player must run Install-Client.ps1 on their PC instead."
 }
 
-# Plugins.txt first: if the game cannot be found, nothing has been copied yet.
+# Checks and Plugins.txt first: if a file is empty or the game cannot be found, nothing has been changed yet.
+Assert-NoEmptyFiles (Get-PackageFiles $here)
 Add-ModloaderPlugins $modloader (Get-PackagePlugins $here) $GamePath
 $count = Copy-PackageToModloader $here $modloader
 Write-Host "Copied $count files to $modloader."

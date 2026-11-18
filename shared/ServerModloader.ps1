@@ -91,8 +91,19 @@ function Get-PackagePlugins([string] $ReleasePath) {
     return @(Get-ChildItem $data -File | Where-Object { $_.Extension -in '.esp', '.esm' } | ForEach-Object { $_.Name })
 }
 
+# The ReadyM launcher cannot download an empty file from the modloader: the game fails to launch with
+# "Couldn't download <file> of modloader". Refuse the whole install, before copying anything, if one is empty.
+function Assert-NoEmptyFiles($Files) {
+    $empty = @($Files | Where-Object { (Get-Item -LiteralPath $_.Source).Length -eq 0 })
+    if ($empty.Count -gt 0) {
+        throw ("These files are empty, and the ReadyM launcher cannot send empty files to players: " +
+            ($empty.Target -join ', ') + '. Nothing was copied to the modloader.')
+    }
+}
+
 function Copy-PackageToModloader([string] $ReleasePath, [string] $Modloader) {
     $files = @(Get-PackageFiles $ReleasePath)
+    Assert-NoEmptyFiles $files
     foreach ($f in $files) {
         $target = Join-Path $Modloader $f.Target
         New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null

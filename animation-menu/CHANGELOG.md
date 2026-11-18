@@ -16,6 +16,8 @@ All notable changes to Sefiro Animation Menu are listed here. The format follows
 ### Added
 
 - `Uninstall-Server.ps1`: removes the server mod and the Lua mod files from the modloader.
+- The server installer refuses, before changing anything, a release that contains an empty file: the ReadyM launcher
+  cannot send empty files to players, and the game would not launch.
 
 No change to the mod itself.
 

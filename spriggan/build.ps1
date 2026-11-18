@@ -60,6 +60,10 @@ foreach ($file in 'Install-Server.ps1', 'Uninstall-Server.ps1', 'Install-Client.
 Copy-Item (Join-Path $root '..\shared\ServerModloader.ps1') $out
 Copy-Item (Join-Path $root 'README.md'), (Join-Path $root 'CHANGELOG.md') $out
 
+# The ReadyM launcher cannot send empty files from a server's modloader: fail the build instead of shipping one.
+$empty = @(Get-ChildItem $out -Recurse -File | Where-Object { $_.Length -eq 0 })
+if ($empty.Count -gt 0) { throw "Empty files in the release: $($empty.FullName -join ', ')" }
+
 # Zip with "/" separators (Compress-Archive in Windows PowerShell 5.1 writes "\", which breaks unzip on Linux).
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::Open($zip, 'Create')

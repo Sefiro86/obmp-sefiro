@@ -11,6 +11,8 @@ All notable changes to the Spriggan character pack are listed here. The format f
   every player before the game starts. It adds `ObmpSpriggan.esp` to the modloader's `Plugins.txt`, creating that file
   from the game's load order when it does not exist yet (`-GamePath` if the game is not found through Steam).
 - `Uninstall-Server.ps1`: removes those files and the plugin line.
+- The server installer refuses, before changing anything, a release that contains an empty file: the ReadyM launcher
+  cannot send empty files to players, and the game would not launch.
 
 ### Changed
 
