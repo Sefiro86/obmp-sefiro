@@ -1,34 +1,44 @@
 <#
 .SYNOPSIS
-    Installs Sefiro Transformation Menu on an OblivionMP server.
+    Installs Sefiro Transformation Menu on an OblivionMP server, for every player.
 
 .DESCRIPTION
-    Copies the Sefiro.TransformationMenu mod into the server's "mods" folder. The server hands its client half to
-    every player who connects. An existing server\config.json (the list of allowed accounts) is kept.
+    1. Copies the Sefiro.TransformationMenu mod into the server's "mods" folder. The server hands its client half to
+       every player who connects. An existing server\config.json (the list of allowed accounts) is kept.
+    2. Copies the UE4SS Lua mods SefiroTransformation and SefiroTransformationSync into the server's
+       modloader\@APPDATA\Mods. The ReadyM launcher copies them to every player's PC before the game starts, so players
+       install nothing by hand. Character packs already in the modloader (packs\*.json) are kept.
 
-    Stop the server before running this script: while it runs, the mod's files are locked.
-    Each player also needs the UE4SS Lua mod: see Install-Client.ps1.
+    Stop the server before running this script, and start it again afterwards: the server reads the modloader when it
+    starts. Run it again after updating this mod.
 
 .PARAMETER ServerPath
-    The OblivionMP server folder, the one that contains the "mods" folder.
+    The OblivionMP server folder, the one that contains the "mods" and "modloader" folders.
+
+.PARAMETER SkipModloader
+    Only install the server mod. Each player then runs Install-Client.ps1 on their PC (the old way).
 
 .EXAMPLE
     .\Install-Server.ps1 -ServerPath "D:\OblivionMP\Server"
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string] $ServerPath
+    [Parameter(Mandatory = $true)][string] $ServerPath,
+    [switch] $SkipModloader
 )
 
 $ErrorActionPreference = 'Stop'
 $ModId = 'Sefiro.TransformationMenu'
 $here = $PSScriptRoot
+. (Join-Path $here 'ServerModloader.ps1')
+
+$ServerPath = Assert-ServerFolder $ServerPath
 $mods = Join-Path $ServerPath 'mods'
-if (-not (Test-Path $mods)) { throw "No 'mods' folder in $ServerPath. Pass the OblivionMP server folder." }
 if (-not (Test-Path (Join-Path $mods 'OblivionMP.Chat'))) {
     Write-Warning "OblivionMP.Chat is not in $mods. This mod depends on it and will not load without it."
 }
 
+# 1. Server mod
 $target = Join-Path $mods $ModId
 $config = Join-Path $target 'server\config.json'
 $keep = $null
@@ -40,4 +50,17 @@ if ($keep) {
     Write-Host "Kept your existing server\config.json."
 }
 Write-Host "Installed $ModId in $target."
-Write-Host "Each player must also run Install-Client.ps1 (the UE4SS Lua mod) on their PC."
+
+# 2. Lua mods, for every player
+if ($SkipModloader) {
+    Write-Host 'Skipped the modloader: each player must run Install-Client.ps1 on their PC.'
+    return
+}
+$modloader = Get-ServerModloader $ServerPath
+if (-not $modloader) {
+    Write-Warning "No 'modloader' folder in $ServerPath, so the Lua mods cannot be sent to players. Each player must run Install-Client.ps1 on their PC."
+    return
+}
+$count = Copy-PackageToModloader $here $modloader
+Write-Host "Copied $count files to $modloader\@APPDATA\Mods (SefiroTransformation, SefiroTransformationSync)."
+Write-Host 'Start the server again: every player receives the Lua mods from the ReadyM launcher when they join.'

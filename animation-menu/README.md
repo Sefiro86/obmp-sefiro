@@ -29,20 +29,32 @@ your character play it, framed by a bench camera, in slow motion, frame by frame
 
 ## Install
 
-The mod has two parts:
+The server owner installs everything once, on the server. Players install nothing: the ReadyM launcher gives them
+the mod when they join.
 
-1. **Server** (once, by the server owner): the OblivionMP mod. The server sends its client half to every player.
-   - Stop the server.
-   - From the release folder, run in PowerShell:
-     ```powershell
-     .\Install-Server.ps1 -ServerPath "D:\OblivionMP\Server"
-     ```
-     or copy `mods\Sefiro.AnimationMenu` into the server's `mods` folder by hand.
-   - Start the server.
-2. **Each player's PC**: the UE4SS Lua mod that plays the animations and drives the camera.
-   - Close the game.
-   - Run `.\Install-Client.ps1` from the release folder. It copies `lua\SefiroAnimationMenu` into
-     `%APPDATA%\ReadyM.Launcher\Oblivion\Mods` and enables it in `mods.txt`.
+1. Stop the server.
+2. From the release folder, run in PowerShell:
+   ```powershell
+   .\Install-Server.ps1 -ServerPath "D:\OblivionMP\Server"
+   ```
+3. Start the server.
+
+The script puts the two parts of the mod in the server folder:
+
+| Part | Copied to | How it reaches the players |
+|---|---|---|
+| The OblivionMP mod (`mods\Sefiro.AnimationMenu`) | `<server>\mods` | The server sends its client half when a player connects. |
+| The UE4SS Lua mod `SefiroAnimationMenu` (`client-appdata\Mods`), which plays the animations and drives the camera | `<server>\modloader\@APPDATA\Mods` | The launcher copies it to `%APPDATA%\ReadyM.Launcher\Oblivion\Mods` before the game starts. |
+
+Run `Install-Server.ps1` again after each update, with the server stopped.
+
+**With DogmaModInstaller:** the release folder has the layout the group's `DogmaModInstaller` reads
+(`dogma-package.json`, `mods\`, `client-appdata\`), so you can also install it with that tool: select the extracted
+`Sefiro.AnimationMenu-<version>` folder. Use one tool or the other for this mod, not both.
+
+**Servers without a `modloader` folder** (or with `-SkipModloader`): only the OblivionMP mod is installed, and each
+player runs `.\Install-Client.ps1` from the release folder with the game closed. It copies the Lua mod into
+`%APPDATA%\ReadyM.Launcher\Oblivion\Mods` and enables it in `mods.txt`.
 
 If PowerShell refuses to run the scripts, start it with `powershell -ExecutionPolicy Bypass` or right-click the
 script and choose **Run with PowerShell**.
@@ -94,6 +106,13 @@ players from it on every frame.
 - **The catalog matches the game version of November 2026.** After a game update, regenerate it with
   `tools\make_catalog.ps1` (needs [retoc](https://github.com/trumank/retoc)). Animations missing from the catalog
   still show up once the game has loaded them.
+
+## Uninstall
+
+- **Server:** stop it and run `.\Uninstall-Server.ps1 -ServerPath "D:\OblivionMP\Server"` from the release folder. It
+  deletes `mods\Sefiro.AnimationMenu` and the Lua mod files in `modloader\@APPDATA\Mods`. Start the server again.
+- **Player's PC** (optional, the Lua mod does nothing without the server mod): close the game and run
+  `.\Uninstall-Client.ps1`. It also deletes your favorites.
 
 ## How it works
 

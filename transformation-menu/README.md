@@ -36,22 +36,36 @@ see the creature too.
 
 ## Install
 
-The mod has two parts:
+The server owner installs everything once, on the server. Players install nothing: the ReadyM launcher gives them
+the mod when they join.
 
-1. **Server** (once, by the server owner): the OblivionMP mod. The server sends its client half to every player.
-   - Stop the server.
-   - From the release folder, run in PowerShell:
-     ```powershell
-     .\Install-Server.ps1 -ServerPath "D:\OblivionMP\Server"
-     ```
-     or copy `mods\Sefiro.TransformationMenu` into the server's `mods` folder by hand.
-   - Start the server.
-2. **Each player's PC**: the UE4SS Lua mods that change the body in game.
-   - Close the game.
-   - Run `.\Install-Client.ps1` from the release folder. It copies `lua\SefiroTransformation` and
-     `lua\SefiroTransformationSync` into `%APPDATA%\ReadyM.Launcher\Oblivion\Mods` and enables them in `mods.txt`.
-     `SefiroTransformationSync` registers the forms of the installed character packs with the game (see
-     [Character packs](#character-packs)); it does nothing when no pack needs it.
+1. Stop the server.
+2. From the release folder, run in PowerShell:
+   ```powershell
+   .\Install-Server.ps1 -ServerPath "D:\OblivionMP\Server"
+   ```
+3. Start the server.
+
+The script puts the two parts of the mod in the server folder:
+
+| Part | Copied to | How it reaches the players |
+|---|---|---|
+| The OblivionMP mod (`mods\Sefiro.TransformationMenu`) | `<server>\mods` | The server sends its client half when a player connects. An existing `server\config.json` is kept. |
+| The UE4SS Lua mods `SefiroTransformation` and `SefiroTransformationSync` (`client-appdata\Mods`) | `<server>\modloader\@APPDATA\Mods` | The launcher copies them to `%APPDATA%\ReadyM.Launcher\Oblivion\Mods` before the game starts. |
+
+`SefiroTransformationSync` registers the forms of the installed character packs with the game (see
+[Character packs](#character-packs)); it does nothing when no pack needs it.
+
+Run `Install-Server.ps1` again after each update, with the server stopped.
+
+**With DogmaModInstaller:** the release folder has the layout the group's `DogmaModInstaller` reads
+(`dogma-package.json`, `mods\`, `client-appdata\`), so you can also install it with that tool: select the extracted
+`Sefiro.TransformationMenu-<version>` folder and keep **Keep server\config.json when updating** checked
+(`-PreserveConfig` on the command line). Use one tool or the other for this mod, not both.
+
+**Servers without a `modloader` folder** (or with `-SkipModloader`): only the OblivionMP mod is installed, and each
+player runs `.\Install-Client.ps1` from the release folder with the game closed. It copies the two Lua mods into
+`%APPDATA%\ReadyM.Launcher\Oblivion\Mods` and enables them in `mods.txt`.
 
 If PowerShell refuses to run the scripts, start it with `powershell -ExecutionPolicy Bypass` or right-click the
 script and choose **Run with PowerShell**.
@@ -96,7 +110,8 @@ A pack can list its plugin forms in `syncMap`: `SefiroTransformationSync` then a
 startup, so the character needs no other Lua mod. Load-order indexes are read from `Plugins.txt`, including the
 Deluxe rule (without the Deluxe edition, plugins after `AltarDeluxe.esp` move down by one).
 
-Custom characters must be installed by every player who should see them, like any other game mod.
+Every player who should see a custom character needs its files. Install character packs on the server too, in its
+`modloader` (the Spriggan's `Install-Server.ps1` does this), so that the launcher gives them to every player.
 
 ## Known limitations
 
@@ -114,8 +129,11 @@ Custom characters must be installed by every player who should see them, like an
 
 ## Uninstall
 
-- **Server:** stop it and delete `mods\Sefiro.TransformationMenu`.
-- **Player's PC:** close the game and run `.\Uninstall-Client.ps1`, or delete
+- **Server:** stop it and run `.\Uninstall-Server.ps1 -ServerPath "D:\OblivionMP\Server"` from the release folder. It
+  deletes `mods\Sefiro.TransformationMenu` (with `server\config.json`: copy it first to keep it) and the Lua mod files
+  in `modloader\@APPDATA\Mods`. Character packs installed by other releases stay. Start the server again.
+- **Player's PC** (optional, the Lua mods do nothing without the server mod): close the game and run
+  `.\Uninstall-Client.ps1`, or delete
   `%APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation` and `...\SefiroTransformationSync` and their lines
   in `mods.txt`.
 

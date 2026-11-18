@@ -3,12 +3,15 @@
     Installs the Spriggan character pack on a player's PC.
 
 .DESCRIPTION
+    Only needed when the server does not send the Spriggan itself: Install-Server.ps1 puts it in the server's
+    modloader, and the ReadyM launcher then copies it to every player. Use this script on servers that do not.
+
     Copies the character into the game and registers it with Sefiro Transformation Menu:
       0000_ObmpSpriggan_P.pak/.ucas/.utoc -> OblivionRemastered\Content\Paks\~mods
       ObmpSpriggan.esp                     -> OblivionRemastered\Content\Dev\ObvData\Data, added to Plugins.txt
       spriggan.json                        -> %APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation\packs
 
-    Needs Sefiro Transformation Menu 0.9.1 or later, installed with its own Install-Client.ps1.
+    Needs the Lua mods of Sefiro Transformation Menu 0.9.1 or later on this PC (its Install-Client.ps1).
     Close the game before running this script.
 
 .PARAMETER GamePath
@@ -66,9 +69,9 @@ if (-not (Test-Path (Join-Path $menu 'Scripts\main.lua')) -or -not (Test-Path (J
 if (-not (Test-Path $data)) { throw "Game data folder not found: $data" }
 
 New-Item -ItemType Directory -Force $paks, (Join-Path $menu 'packs') | Out-Null
-Copy-Item (Join-Path $here 'game\Paks\~mods\0000_ObmpSpriggan_P.*') $paks -Force
-Copy-Item (Join-Path $here "game\Data\$plugin") $data -Force
-Copy-Item (Join-Path $here 'packs\spriggan.json') (Join-Path $menu 'packs') -Force
+Copy-Item (Join-Path $here 'Paks\~mods\0000_ObmpSpriggan_P.*') $paks -Force
+Copy-Item (Join-Path $here "Data\$plugin") $data -Force
+Copy-Item (Join-Path $here 'client-appdata\Mods\SefiroTransformation\packs\spriggan.json') (Join-Path $menu 'packs') -Force
 
 $list = Join-Path $data 'Plugins.txt'
 $lines = @()

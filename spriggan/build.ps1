@@ -6,11 +6,15 @@
     The character's pak is built with Unreal Engine 5.3 and retoc, and its plugin with a record generator; neither is
     part of this repository (see README.md, "How it was made"). This script takes the built files and writes:
       dist\Sefiro.Spriggan-<version>\
-        game\Paks\~mods\0000_ObmpSpriggan_P.pak/.ucas/.utoc
-        game\Data\ObmpSpriggan.esp
-        packs\spriggan.json
-        Install-Client.ps1, Uninstall-Client.ps1, README.md, CHANGELOG.md
+        dogma-package.json                                            package identity for DogmaModInstaller
+        Paks\~mods\0000_ObmpSpriggan_P.pak/.ucas/.utoc                -> modloader\@GAME\Content\Paks\~mods
+        Data\ObmpSpriggan.esp                                         -> modloader\@GAME\Content\Dev\ObvData\Data
+        client-appdata\Mods\SefiroTransformation\packs\spriggan.json  -> modloader\@APPDATA\Mods\...
+        Install-Server.ps1, Uninstall-Server.ps1, ServerModloader.ps1, Install-Client.ps1, Uninstall-Client.ps1,
+        README.md, CHANGELOG.md
       dist\Sefiro.Spriggan-<version>.zip
+
+    The folder layout is the one DogmaModInstaller reads, so the release installs with either tool.
 
 .PARAMETER PakDir
     Folder with 0000_ObmpSpriggan_P.pak, .ucas and .utoc.
@@ -41,13 +45,19 @@ if ((Split-Path $Plugin -Leaf) -ne 'ObmpSpriggan.esp') { throw 'The plugin must 
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 if (Test-Path $zip) { Remove-Item $zip -Force }
 
-$paks = Join-Path $out 'game\Paks\~mods'
-$data = Join-Path $out 'game\Data'
-New-Item -ItemType Directory -Force $paks, $data, (Join-Path $out 'packs') | Out-Null
+$paks = Join-Path $out 'Paks\~mods'
+$data = Join-Path $out 'Data'
+$packs = Join-Path $out 'client-appdata\Mods\SefiroTransformation\packs'
+New-Item -ItemType Directory -Force $paks, $data, $packs | Out-Null
 Copy-Item (Join-Path $PakDir '0000_ObmpSpriggan_P.*') $paks
 Copy-Item $Plugin $data
-Copy-Item (Join-Path $root 'packs\spriggan.json') (Join-Path $out 'packs')
-Copy-Item (Join-Path $root 'install\Install-Client.ps1'), (Join-Path $root 'install\Uninstall-Client.ps1') $out
+Copy-Item (Join-Path $root 'packs\spriggan.json') $packs
+$meta = [ordered]@{ id = 'Sefiro.Spriggan'; name = 'Spriggan character pack'; version = $Version } | ConvertTo-Json
+[IO.File]::WriteAllText((Join-Path $out 'dogma-package.json'), $meta, (New-Object Text.UTF8Encoding $false))
+foreach ($file in 'Install-Server.ps1', 'Uninstall-Server.ps1', 'Install-Client.ps1', 'Uninstall-Client.ps1') {
+    Copy-Item (Join-Path $root "install\$file") $out
+}
+Copy-Item (Join-Path $root '..\shared\ServerModloader.ps1') $out
 Copy-Item (Join-Path $root 'README.md'), (Join-Path $root 'CHANGELOG.md') $out
 
 # Zip with "/" separators (Compress-Archive in Windows PowerShell 5.1 writes "\", which breaks unzip on Linux).

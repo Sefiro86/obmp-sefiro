@@ -5,10 +5,15 @@
 .DESCRIPTION
     Output (in transformation-menu\dist):
       Sefiro.TransformationMenu-<version>\
-        mods\Sefiro.TransformationMenu\manifest.json, client\, server\   the OblivionMP mod, for a server's mods folder
-        lua\SefiroTransformation\                                        the UE4SS Lua mod, for each player's PC
-        Install-Server.ps1, Install-Client.ps1, Uninstall-Client.ps1, README.md, CHANGELOG.md, LICENSE
+        dogma-package.json                                               package identity for DogmaModInstaller
+        mods\Sefiro.TransformationMenu\manifest.json, client\, server\   the OblivionMP mod, for the server's mods folder
+        client-appdata\Mods\SefiroTransformation\, ...Sync\              the UE4SS Lua mods, for the server's
+                                                                         modloader\@APPDATA (or each player's PC)
+        Install-Server.ps1, Uninstall-Server.ps1, ServerModloader.ps1, Install-Client.ps1, Uninstall-Client.ps1,
+        README.md, CHANGELOG.md, LICENSE
       Sefiro.TransformationMenu-<version>.zip
+
+    The folder layout is the one DogmaModInstaller reads, so the release installs with either tool.
 
     Requires the .NET 10 SDK. The version comes from src\Content\manifest.json.
 #>
@@ -49,8 +54,15 @@ Copy-Item (Join-Path $serverBin 'Sefiro.TransformationMenu.Server.dll'), (Join-P
 Copy-Item (Join-Path $src 'Content\config.json') $server
 Copy-Item (Join-Path $src 'Content\manifest.json') $mod
 
-Copy-Item (Join-Path $root 'lua') $out -Recurse
-Copy-Item (Join-Path $root 'install\Install-Server.ps1'), (Join-Path $root 'install\Install-Client.ps1'), (Join-Path $root 'install\Uninstall-Client.ps1') $out
+$appMods = Join-Path $out 'client-appdata\Mods'
+New-Item -ItemType Directory -Force $appMods | Out-Null
+Copy-Item (Join-Path $root 'lua\*') $appMods -Recurse
+$meta = [ordered]@{ id = $modId; name = $manifest.name; version = $version } | ConvertTo-Json
+[IO.File]::WriteAllText((Join-Path $out 'dogma-package.json'), $meta, (New-Object Text.UTF8Encoding $false))
+foreach ($file in 'Install-Server.ps1', 'Uninstall-Server.ps1', 'Install-Client.ps1', 'Uninstall-Client.ps1') {
+    Copy-Item (Join-Path $root "install\$file") $out
+}
+Copy-Item (Join-Path $root '..\shared\ServerModloader.ps1') $out
 Copy-Item (Join-Path $root 'README.md'), (Join-Path $root 'CHANGELOG.md') $out
 Copy-Item (Join-Path $root '..\LICENSE') $out
 

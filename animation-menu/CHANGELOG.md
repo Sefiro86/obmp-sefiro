@@ -2,6 +2,23 @@
 
 All notable changes to Sefiro Animation Menu are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.9.3] - 2026-11-18
+
+### Changed
+
+- Players no longer install anything. `Install-Server.ps1` now also copies the Lua mod `SefiroAnimationMenu` into the
+  server's `modloader\@APPDATA\Mods`, and the ReadyM launcher copies it to every player before the game starts.
+  `-SkipModloader` keeps the old behaviour.
+- The release folder uses the `DogmaModInstaller` package layout: `dogma-package.json`, `mods\` and
+  `client-appdata\Mods\` (it was `lua\`), so it can be installed with that tool too.
+- `Install-Client.ps1` is now only needed on servers without a `modloader` folder.
+
+### Added
+
+- `Uninstall-Server.ps1`: removes the server mod and the Lua mod files from the modloader.
+
+No change to the mod itself.
+
 ## [0.9.2] - 2026-11-17
 
 ### Fixed

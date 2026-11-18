@@ -3,7 +3,10 @@
     Installs the UE4SS Lua part of Sefiro Animation Menu on a player's PC.
 
 .DESCRIPTION
-    Copies lua\SefiroAnimationMenu into the ReadyM launcher's UE4SS mods folder
+    Only needed when the server does not send the Lua mod itself: Install-Server.ps1 puts it in the server's
+    modloader, and the ReadyM launcher then copies it to every player. Use this script on servers that do not.
+
+    Copies client-appdata\Mods\SefiroAnimationMenu into the ReadyM launcher's UE4SS mods folder
     (%APPDATA%\ReadyM.Launcher\Oblivion\Mods) and enables it in mods.txt. Your favorites (favorites.txt) are kept.
 
     Close the game before running this script. The C# half of the mod needs no install: the server sends it.
@@ -23,8 +26,9 @@ if (-not (Test-Path $mods)) { throw "ReadyM launcher mods folder not found: $mod
 
 $target = Join-Path $mods $Name
 New-Item -ItemType Directory -Force (Join-Path $target 'Scripts') | Out-Null
-Copy-Item (Join-Path $here "lua\$Name\Scripts\*") (Join-Path $target 'Scripts') -Force
-Copy-Item (Join-Path $here "lua\$Name\catalog.txt"), (Join-Path $here "lua\$Name\enabled.txt") $target -Force
+$source = Join-Path $here "client-appdata\Mods\$Name"
+Copy-Item (Join-Path $source 'Scripts\*') (Join-Path $target 'Scripts') -Force
+Copy-Item (Join-Path $source 'catalog.txt'), (Join-Path $source 'enabled.txt') $target -Force
 
 $list = Join-Path $mods 'mods.txt'
 $lines = @()

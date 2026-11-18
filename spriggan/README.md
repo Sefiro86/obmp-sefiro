@@ -19,33 +19,46 @@ back, and the other players seeing it too.
 
 ## Requirements
 
-- [Sefiro Transformation Menu](../transformation-menu) **0.9.1 or later**, on the server and on each player's PC.
+- [Sefiro Transformation Menu](../transformation-menu) **0.9.2 or later** on the server (0.9.1 works too, if every
+  player installed its Lua mods by hand).
 - Oblivion Remastered started through the ReadyM launcher.
 
 ## Install
 
-On **each player's PC** that should see the Spriggan:
+The server owner installs the Spriggan once, on the server. Players install nothing: the ReadyM launcher gives it to
+them when they join.
 
-1. Install or update Sefiro Transformation Menu 0.9.1 (server and client), following its guide.
-2. Close the game.
+1. Install or update Sefiro Transformation Menu on the server, following its guide.
+2. Stop the server.
 3. From the release folder, run in PowerShell:
    ```powershell
-   .\Install-Client.ps1
+   .\Install-Server.ps1 -ServerPath "D:\OblivionMP\Server"
    ```
-   It finds the game through Steam. If it does not, pass the folder that contains `OblivionRemastered`:
-   ```powershell
-   .\Install-Client.ps1 -GamePath "D:\Games\Oblivion Remastered"
-   ```
+4. Start the server.
 
-The script copies:
+The script copies into the server's `modloader` folder:
 
-| File | Where |
-|---|---|
-| `0000_ObmpSpriggan_P.pak`, `.ucas`, `.utoc` | `OblivionRemastered\Content\Paks\~mods` |
-| `ObmpSpriggan.esp` | `OblivionRemastered\Content\Dev\ObvData\Data`, and adds it to `Plugins.txt` |
-| `spriggan.json` | `%APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation\packs` |
+| File | Copied to | On each player's PC |
+|---|---|---|
+| `Paks\~mods\0000_ObmpSpriggan_P.pak`, `.ucas`, `.utoc` | `modloader\@GAME\Content\Paks\~mods` | `OblivionRemastered\Content\Paks\~mods` |
+| `Data\ObmpSpriggan.esp` | `modloader\@GAME\Content\Dev\ObvData\Data`, and adds it to that folder's `Plugins.txt` | `OblivionRemastered\Content\Dev\ObvData\Data` |
+| `client-appdata\Mods\SefiroTransformation\packs\spriggan.json` | `modloader\@APPDATA\Mods\SefiroTransformation\packs` | `%APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation\packs` |
 
-If PowerShell refuses to run the script, start it with `powershell -ExecutionPolicy Bypass` or right-click the
+**About `Plugins.txt`:** the `Plugins.txt` in the server's modloader replaces the one of every player who joins, so
+everyone has the server's load order. If the modloader has none yet, the script creates it from the `Plugins.txt` of
+the game on the server PC (found through Steam; otherwise pass `-GamePath "D:\Games\Oblivion Remastered"`), then adds
+`ObmpSpriggan.esp` at the end. Plugins already listed keep their order.
+
+**With DogmaModInstaller:** the release folder has the layout the group's `DogmaModInstaller` reads
+(`dogma-package.json`, `Paks\`, `Data\`, `client-appdata\`), so you can also install it with that tool: select the
+extracted `Sefiro.Spriggan-<version>` folder, and pass `-Game` so that it can create `Plugins.txt` from the game's
+load order. Use one tool or the other for this pack, not both.
+
+**Servers without a `modloader` folder:** each player who should see the Spriggan runs `.\Install-Client.ps1` from
+the release folder, with the game closed and the Transformation Menu Lua mods installed. It copies the same files into
+the game and `%APPDATA%` (it finds the game through Steam, or pass `-GamePath`) and adds the plugin to `Plugins.txt`.
+
+If PowerShell refuses to run the scripts, start it with `powershell -ExecutionPolicy Bypass` or right-click the
 script and choose **Run with PowerShell**.
 
 To check that it works, look in the game's `UE4SS.log` for `[SefiroTransformationSync] spriggan: ... ObmpSprigganRace`
@@ -65,8 +78,13 @@ and `[SefiroTransformation] pack spriggan: 1 skins`.
 
 ## Uninstall
 
-Turn back to normal, close the game and run `.\Uninstall-Client.ps1` from the release folder. It removes the pak, the
-plugin (and its line in `Plugins.txt`) and the pack file.
+Ask players to turn back to normal first.
+
+- **Server:** stop it and run `.\Uninstall-Server.ps1 -ServerPath "D:\OblivionMP\Server"` from the release folder. It
+  removes the pak, the plugin (and its line in the modloader's `Plugins.txt`) and the pack file from the modloader.
+  Start the server again.
+- **Player's PC** (optional): close the game and run `.\Uninstall-Client.ps1`. It removes the pak, the plugin (and its
+  line in `Plugins.txt`) and the pack file.
 
 ## How it was made
 

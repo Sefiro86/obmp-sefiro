@@ -3,8 +3,11 @@
     Installs the UE4SS Lua part of Sefiro Transformation Menu on a player's PC.
 
 .DESCRIPTION
-    Copies lua\SefiroTransformation and lua\SefiroTransformationSync into the ReadyM launcher's UE4SS mods folder
-    (%APPDATA%\ReadyM.Launcher\Oblivion\Mods) and enables them in mods.txt. Your own character packs
+    Only needed when the server does not send the Lua mods itself: Install-Server.ps1 puts them in the server's
+    modloader, and the ReadyM launcher then copies them to every player. Use this script on servers that do not.
+
+    Copies client-appdata\Mods\SefiroTransformation and SefiroTransformationSync into the ReadyM launcher's UE4SS mods
+    folder (%APPDATA%\ReadyM.Launcher\Oblivion\Mods) and enables them in mods.txt. Your own character packs
     (packs\*.json) are kept.
 
     SefiroTransformationSync registers the forms of the installed character packs with the game ("syncMap" in a
@@ -26,14 +29,14 @@ if (-not (Test-Path $mods)) { throw "ReadyM launcher mods folder not found: $mod
 
 $menu = Join-Path $mods 'SefiroTransformation'
 New-Item -ItemType Directory -Force (Join-Path $menu 'Scripts'), (Join-Path $menu 'packs') | Out-Null
-Copy-Item (Join-Path $here 'lua\SefiroTransformation\Scripts\*') (Join-Path $menu 'Scripts') -Force
-Copy-Item (Join-Path $here 'lua\SefiroTransformation\packs\README.md') (Join-Path $menu 'packs') -Force
-Copy-Item (Join-Path $here 'lua\SefiroTransformation\enabled.txt') $menu -Force
+Copy-Item (Join-Path $here 'client-appdata\Mods\SefiroTransformation\Scripts\*') (Join-Path $menu 'Scripts') -Force
+Copy-Item (Join-Path $here 'client-appdata\Mods\SefiroTransformation\packs\README.md') (Join-Path $menu 'packs') -Force
+Copy-Item (Join-Path $here 'client-appdata\Mods\SefiroTransformation\enabled.txt') $menu -Force
 
 $sync = Join-Path $mods 'SefiroTransformationSync'
 New-Item -ItemType Directory -Force (Join-Path $sync 'Scripts') | Out-Null
-Copy-Item (Join-Path $here 'lua\SefiroTransformationSync\Scripts\*') (Join-Path $sync 'Scripts') -Force
-Copy-Item (Join-Path $here 'lua\SefiroTransformationSync\enabled.txt') $sync -Force
+Copy-Item (Join-Path $here 'client-appdata\Mods\SefiroTransformationSync\Scripts\*') (Join-Path $sync 'Scripts') -Force
+Copy-Item (Join-Path $here 'client-appdata\Mods\SefiroTransformationSync\enabled.txt') $sync -Force
 
 $list = Join-Path $mods 'mods.txt'
 foreach ($Name in 'SefiroTransformation', 'SefiroTransformationSync') {

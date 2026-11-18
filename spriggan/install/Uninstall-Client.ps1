@@ -5,7 +5,8 @@
 .DESCRIPTION
     Deletes the Spriggan pak files from Content\Paks\~mods, ObmpSpriggan.esp from the game data folder and from
     Plugins.txt, and spriggan.json from the Transformation Menu packs folder. Turn back to normal before uninstalling,
-    and close the game.
+    and close the game. If a server you join still sends the Spriggan through its modloader, the ReadyM launcher puts
+    it back: to remove it from a server, run Uninstall-Server.ps1 there.
 
 .PARAMETER GamePath
     The Oblivion Remastered folder (the one that contains "OblivionRemastered"). If omitted, the Steam libraries are

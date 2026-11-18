@@ -5,8 +5,8 @@
 .DESCRIPTION
     Deletes %APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroAnimationMenu and its line in mods.txt.
     Your favorites (favorites.txt) are deleted with it: copy that file first if you want to keep it.
-    Close the game before running this script. To remove the server half, delete
-    mods\Sefiro.AnimationMenu from the server folder while the server is stopped.
+    Close the game before running this script. If a server you join still sends the Lua mod through its modloader,
+    the ReadyM launcher puts it back: to remove the mod from a server, run Uninstall-Server.ps1 there.
 #>
 [CmdletBinding()]
 param()

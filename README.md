@@ -17,6 +17,8 @@ Each project lives in its own folder, with its own guide, changelog and releases
 
 Download the zip from the [Releases page](https://github.com/Sefiro86/obmp-sefiro/releases) and follow the guide in the project's folder. Releases are tagged by project, for example `chat-history-v1.0.0`.
 
+Every mod is installed once, on the server, with `Install-Server.ps1` (Chat History: `Install.ps1`). Players install nothing: the server sends the OblivionMP mods when they connect, and the ReadyM launcher copies what the server keeps in its `modloader` folder (UE4SS Lua mods, paks, plugins) before the game starts. Transformation Menu, Animation Menu and Spriggan releases also have the folder layout of the `DogmaModInstaller` tool, and an `Install-Client.ps1` for servers without a `modloader` folder.
+
 ## Reporting a problem
 
 Open an [issue](https://github.com/Sefiro86/obmp-sefiro/issues) and include:

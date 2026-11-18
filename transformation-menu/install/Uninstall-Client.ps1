@@ -5,8 +5,8 @@
 .DESCRIPTION
     Deletes %APPDATA%\ReadyM.Launcher\Oblivion\Mods\SefiroTransformation and SefiroTransformationSync, and their lines
     in mods.txt. Your character packs are deleted with it: copy the packs folder first if you want to keep them.
-    Close the game before running this script. To remove the server half, delete
-    mods\Sefiro.TransformationMenu from the server folder while the server is stopped.
+    Close the game before running this script. If a server you join still sends the Lua mods through its modloader,
+    the ReadyM launcher puts them back: to remove the mod from a server, run Uninstall-Server.ps1 there.
 #>
 [CmdletBinding()]
 param()
